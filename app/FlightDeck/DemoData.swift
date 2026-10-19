@@ -1,7 +1,7 @@
 import Foundation
 
 enum DemoData {
-    static func trips() -> [Trip] {
+    static func trips(nextTripLegCount: Int = 2) -> [Trip] {
         let now = Date()
         let day = Calendar.current.startOfDay(for:now)
         let start = max(now.addingTimeInterval(75*60), day.addingTimeInterval(10*3600))
@@ -10,6 +10,7 @@ enum DemoData {
             "MUC":Airport(iata:"MUC",name:"Munich Airport",city:"Munich",timezone:"Europe/Berlin"),
             "ZRH":Airport(iata:"ZRH",name:"Zurich Airport",city:"Zurich",timezone:"Europe/Zurich"),
             "LHR":Airport(iata:"LHR",name:"Heathrow Airport",city:"London",timezone:"Europe/London"),
+            "CDG":Airport(iata:"CDG",name:"Charles de Gaulle Airport",city:"Paris",timezone:"Europe/Paris"),
             "CPT":Airport(iata:"CPT",name:"Cape Town International",city:"Cape Town",timezone:"Africa/Johannesburg"),
             "JNB":Airport(iata:"JNB",name:"O.R. Tambo International",city:"Johannesburg",timezone:"Africa/Johannesburg")]
         func flight(_ number: String, _ origin: String, _ dest: String, _ date: Date, _ duration: Double, past: Bool = false) -> FlightInfo {
@@ -34,9 +35,12 @@ enum DemoData {
         var secondInbound = flight("LX1106","ZRH","MUC",start.addingTimeInterval(25*60),55)
         secondInbound.registration = "HB-JDB"; secondInbound.operator = "LX"
         let second = leg(secondInfo,inbound:secondInbound)
+        let third = leg(flight("LX318","ZRH","LHR",start.addingTimeInterval(270*60),105))
+        let fourth = leg(flight("BA304","LHR","CDG",start.addingTimeInterval(440*60),80))
+        let nextTripLegs = Array([first,second,third,fourth].prefix(min(4,max(1,nextTripLegCount))))
         let next = leg(flight("LX318","ZRH","LHR",day.addingTimeInterval(5*86400+11*3600),105))
         let past = leg(flight("FA104","CPT","JNB",day.addingTimeInterval(-8*86400+9*3600),125,past:true))
-        return [Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[first,second]),
+        return [Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:nextTripLegs),
                 Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[next]),
                 Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[past])]
     }

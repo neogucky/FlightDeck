@@ -24,7 +24,9 @@ final class FlightStore {
         address = defaults.string(forKey:"serverAddress") ?? ""
         if ProcessInfo.processInfo.arguments.contains("--uitesting") {
             demo = true
-            trips = DemoData.trips()
+            let count = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--uitesting-flight-count=") })
+                .flatMap { Int($0.replacingOccurrences(of:"--uitesting-flight-count=",with:"")) } ?? 2
+            trips = DemoData.trips(nextTripLegCount:count)
         } else if ProcessInfo.processInfo.arguments.contains("--uitesting-preserve") {
             demo = true
             trips = loadCache(demo:true)?.trips ?? []

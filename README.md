@@ -2,13 +2,13 @@
 
 A personal flight companion: your upcoming flight, the incoming aircraft and every connection in one place. Native SwiftUI for iPhone, backed by a small Python service.
 
-[Native overview preview](previews/overview.png) · [Validation notes](VALIDATION.md)
+[Native overview preview](previews/overview.png) · [Three flights](previews/overview-three-flights.png) · [Longer trips](previews/overview-long-trip.png) · [Validation notes](VALIDATION.md)
 
 ## First version
 
 - A saved flight journal, including manually entered past flights.
 - Single flights and trips with up to eight connected legs; each leg has its own departure date.
-- A whole-trip overview with first departure, final arrival, all flight numbers and a combined status; a separate incoming-aircraft card for each remaining leg. Trips are identified automatically, with no name to enter.
+- A whole-trip overview with first departure, final arrival and a combined status. For one to three flights, each flight number sits above its arrow between airports; longer trips show endpoints and a connection count. A separate incoming-aircraft card tracks each remaining leg. Trips are identified automatically, with no name to enter.
 - Upcoming trips sorted by date, with flight status, gates, local times, aircraft registration/type and the incoming flight when identified by FlightAware.
 - Automatic refresh on opening/foregrounding and while the app is visible when data is over 15 minutes old. Pull-to-refresh requests an immediate update, subject to a 60-second safety cache and spending limits.
 - Offline device cache, separate demo and server data, connection-token storage in Keychain.

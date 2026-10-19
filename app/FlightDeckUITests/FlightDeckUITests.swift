@@ -13,7 +13,7 @@ final class FlightDeckUITests: XCTestCase {
         let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
         let trip = app.buttons["nextTrip"]
         XCTAssertTrue(trip.waitForExistence(timeout:10))
-        for text in ["LH2055", "LX1107", "HAM → MUC → ZRH", "All on time"] {
+        for text in ["HAM to MUC, flight LH2055", "MUC to ZRH, flight LX1107", "All on time"] {
             XCTAssertTrue(trip.label.contains(text), "Missing trip information: \(text)")
         }
         XCTAssertFalse(trip.label.contains("A weekend in Zurich"))
@@ -24,6 +24,32 @@ final class FlightDeckUITests: XCTestCase {
         XCTAssertTrue(first.label.contains("MUC → HAM"))
         XCTAssertTrue(second.label.contains("ZRH → MUC"))
         capture("Dashboard",app)
+    }
+    func testRouteLayoutForDirectThreeAndFourFlightTrips() {
+        let app = XCUIApplication()
+        for count in [1,3,4] {
+            app.launchArguments = ["--uitesting", "--uitesting-flight-count=\(count)"]
+            app.launch()
+            let trip = app.buttons["nextTrip"]
+            XCTAssertTrue(trip.waitForExistence(timeout:10))
+            switch count {
+            case 1:
+                XCTAssertTrue(trip.label.contains("HAM to MUC, flight LH2055"))
+                XCTAssertTrue(trip.label.contains("Direct flight"))
+                XCTAssertFalse(trip.label.contains("LX1107"))
+            case 3:
+                for segment in ["HAM to MUC, flight LH2055", "MUC to ZRH, flight LX1107", "ZRH to LHR, flight LX318"] {
+                    XCTAssertTrue(trip.label.contains(segment))
+                }
+                XCTAssertTrue(trip.label.contains("3 flights · 2 connections"))
+            default:
+                XCTAssertTrue(trip.label.contains("HAM to CDG"))
+                XCTAssertTrue(trip.label.contains("4 flights · 3 connections"))
+                for number in ["LH2055", "LX1107", "LX318", "BA304"] { XCTAssertFalse(trip.label.contains(number)) }
+            }
+            capture("Overview - \(count) flights",app)
+            app.terminate()
+        }
     }
     func testConnectedTripCanBeAddedAndOpened() {
         let app = XCUIApplication()

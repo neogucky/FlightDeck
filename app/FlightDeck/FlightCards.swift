@@ -4,6 +4,13 @@ struct JourneyHero: View {
     let trip: Trip
     var departure: FlightInfo? { trip.legs.first?.snapshot?.flight }
     var arrival: FlightInfo? { trip.legs.last?.snapshot?.flight }
+    var showsFlightSegments: Bool { (1...3).contains(trip.legs.count) }
+    var routeFontSize: CGFloat { trip.legs.count == 1 ? 34 : trip.legs.count == 2 ? 26 : 21 }
+    var flightCountLabel: String {
+        if trip.legs.count == 1 { return "Direct flight" }
+        let connections = max(0,trip.legs.count-1)
+        return "\(trip.legs.count) flights · \(connections) \(connections == 1 ? "connection":"connections")"
+    }
     var body: some View {
         VStack(alignment:.leading,spacing:22) {
             HStack {
@@ -18,24 +25,38 @@ struct JourneyHero: View {
                 Image(systemName:"arrow.up.right").font(.system(size:17,weight:.medium)).padding(11)
                     .background(.white.opacity(0.09),in:Circle())
             }
-            HStack(spacing:14) {
-                VStack(alignment:.leading,spacing:5) {
-                    Text(trip.legs.first?.origin ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
-                    Text(FlightTime.clock(departure?.departure,zone:departure?.origin.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
+            VStack(spacing:10) {
+                if showsFlightSegments {
+                    HStack(alignment:.lastTextBaseline,spacing:0) {
+                        airport(trip.legs.first?.origin ?? "—",size:routeFontSize)
+                        ForEach(trip.legs) { leg in
+                            VStack(spacing:8) {
+                                Text(leg.flightNumber).font(.system(size:10,weight:.bold,design:.monospaced))
+                                    .lineLimit(1).minimumScaleFactor(0.65)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                Text("→").font(.system(size:21,weight:.light)).foregroundStyle(.white.opacity(0.6))
+                            }.frame(maxWidth:.infinity)
+                            airport(leg.destination,size:routeFontSize)
+                        }
+                    }.accessibilityElement(children:.ignore)
+                        .accessibilityLabel(trip.legs.map { "\($0.origin) to \($0.destination), flight \($0.flightNumber)" }.joined(separator:"; "))
+                } else {
+                    HStack(spacing:14) {
+                        airport(trip.legs.first?.origin ?? "—",size:34)
+                        RouteLine(color:.white.opacity(0.65)).padding(.horizontal,8)
+                        airport(trip.legs.last?.destination ?? "—",size:34)
+                    }.accessibilityElement(children:.ignore)
+                        .accessibilityLabel("\(trip.legs.first?.origin ?? "—") to \(trip.legs.last?.destination ?? "—")")
                 }
-                RouteLine(color:.white.opacity(0.65)).padding(.horizontal,8)
-                VStack(alignment:.trailing,spacing:5) {
-                    Text(trip.legs.last?.destination ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
+                HStack {
+                    Text(FlightTime.clock(departure?.departure,zone:departure?.origin.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
+                    Spacer()
                     Text(FlightTime.clock(arrival?.arrival,zone:arrival?.destination.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
                 }
             }
             Rectangle().fill(.white.opacity(0.15)).frame(height:1)
             HStack {
-                VStack(alignment:.leading,spacing:4) {
-                    Text(trip.legs.map(\.flightNumber).joined(separator:" · ")).font(.system(size:13,weight:.bold,design:.monospaced))
-                    Text(trip.route)
-                        .font(.system(size:11)).foregroundStyle(.white.opacity(0.6))
-                }
+                Text(flightCountLabel).font(.system(size:11)).foregroundStyle(.white.opacity(0.6))
                 Spacer()
                 StatusBadge(trip:trip,dark:true).fixedSize()
             }
@@ -50,6 +71,9 @@ struct JourneyHero: View {
             .contentShape(RoundedRectangle(cornerRadius:28))
             .shadow(color:Deck.ink.opacity(0.12),radius:18,x:0,y:8)
             .accessibilityElement(children:.combine)
+    }
+    private func airport(_ code: String, size: CGFloat) -> some View {
+        Text(code).font(.system(size:size,weight:.medium,design:.rounded)).tracking(1).fixedSize()
     }
 }
 
