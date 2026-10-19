@@ -21,7 +21,12 @@ struct TripDetailView: View {
                                 Text(leg.departureDay.formatted(.dateTime.day().month(.abbreviated))).font(.system(size:12)).foregroundStyle(Deck.muted)
                             }
                             LegDetailCard(leg:leg)
-                            if !leg.isPast { IncomingCard(leg:leg) }
+                            if !leg.isPast {
+                                VStack(alignment:.leading,spacing:10) {
+                                    Text("INCOMING AIRCRAFT").eyebrow().foregroundStyle(Deck.muted)
+                                    IncomingCard(leg:leg)
+                                }
+                            }
                             if let f = leg.snapshot?.flight {
                                 HStack(spacing:14) {
                                     Image(systemName:"airplane").font(.system(size:28,weight:.light)).foregroundStyle(Deck.orange)

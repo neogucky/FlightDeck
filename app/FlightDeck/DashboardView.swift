@@ -15,7 +15,7 @@ struct DashboardView: View {
                         Spacer()
                         Button { adding = true } label: {
                             Image(systemName:"plus").font(.system(size:21,weight:.medium)).foregroundStyle(.white)
-                                .frame(width:48,height:48).background(Deck.orange,in:Circle())
+                                .frame(width:48,height:48).background(Deck.ink,in:Circle())
                         }.accessibilityLabel("Add flight").accessibilityIdentifier("addFlight")
                     }
                     if store.isDemo {
@@ -31,8 +31,12 @@ struct DashboardView: View {
                     }
                     if let next = store.upcoming.first {
                         NavigationLink(value:next.id) { JourneyHero(trip:next) }.buttonStyle(.plain).accessibilityIdentifier("nextTrip")
-                        if let leg = next.nextLeg {
-                            NavigationLink(value:next.id) { IncomingCard(leg:leg) }.buttonStyle(.plain)
+                        VStack(alignment:.leading,spacing:12) {
+                            SectionTitle(title:"Incoming aircraft")
+                            ForEach(next.legs.filter { !$0.isPast }) { leg in
+                                NavigationLink(value:next.id) { IncomingCard(leg:leg) }.buttonStyle(.plain)
+                                    .accessibilityIdentifier("incoming-\(leg.flightNumber)")
+                            }
                         }
                         if let issue = store.issues.first(where:{ issue in next.legs.contains(where:{ $0.id == issue.legId }) }) {
                             Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.muted)
@@ -85,7 +89,7 @@ struct HistoryView: View {
                     HStack {
                         Text("Past adventures").font(.system(size:32,weight:.bold)).tracking(-1.2)
                         Spacer()
-                        Button { adding = true } label: { Image(systemName:"plus.circle.fill").font(.title).foregroundStyle(Deck.orange) }
+                        Button { adding = true } label: { Image(systemName:"plus.circle.fill").font(.title).foregroundStyle(Deck.ink) }
                             .accessibilityLabel("Add past flight")
                     }
                     HStack(spacing:12) {

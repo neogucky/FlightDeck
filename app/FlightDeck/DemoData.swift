@@ -31,11 +31,13 @@ enum DemoData {
         let first = leg(flight("LH2055","HAM","MUC",start,80),inbound:inbound)
         var secondInfo = flight("LX1107","MUC","ZRH",start.addingTimeInterval(140*60),55)
         secondInfo.registration = "HB-JDB"; secondInfo.departureGate = "G28"; secondInfo.operator = "LX"
-        let second = leg(secondInfo)
+        var secondInbound = flight("LX1106","ZRH","MUC",start.addingTimeInterval(25*60),55)
+        secondInbound.registration = "HB-JDB"; secondInbound.operator = "LX"
+        let second = leg(secondInfo,inbound:secondInbound)
         let next = leg(flight("LX318","ZRH","LHR",day.addingTimeInterval(5*86400+11*3600),105))
         let past = leg(flight("FA104","CPT","JNB",day.addingTimeInterval(-8*86400+9*3600),125,past:true))
-        return [Trip(id:UUID().uuidString,title:"A weekend in Zurich",createdAt:FlightTime.iso(now),legs:[first,second]),
-                Trip(id:UUID().uuidString,title:"London calling",createdAt:FlightTime.iso(now),legs:[next]),
-                Trip(id:UUID().uuidString,title:"Back to Johannesburg",createdAt:FlightTime.iso(now),legs:[past])]
+        return [Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[first,second]),
+                Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[next]),
+                Trip(id:UUID().uuidString,title:"",createdAt:FlightTime.iso(now),legs:[past])]
     }
 }

@@ -2,8 +2,8 @@ import SwiftUI
 
 struct JourneyHero: View {
     let trip: Trip
-    var leg: FlightLeg? { trip.nextLeg }
-    var flight: FlightInfo? { leg?.snapshot?.flight }
+    var departure: FlightInfo? { trip.legs.first?.snapshot?.flight }
+    var arrival: FlightInfo? { trip.legs.last?.snapshot?.flight }
     var body: some View {
         VStack(alignment:.leading,spacing:22) {
             HStack {
@@ -12,36 +12,32 @@ struct JourneyHero: View {
                 Text(trip.departure.formatted(.dateTime.month(.abbreviated).day())).eyebrow().foregroundStyle(.white.opacity(0.65))
             }
             HStack(alignment:.top) {
-                VStack(alignment:.leading,spacing:6) {
-                    Text(trip.legs.last?.snapshot?.flight.destination.city.nonempty ?? trip.legs.last?.destinationIata ?? "Your next trip")
-                        .font(.system(size:34,weight:.bold)).tracking(-1.3)
-                    Text(trip.title.nonempty ?? (trip.legs.count > 1 ? "One journey. All your connections.":"Your next flight, at a glance."))
-                        .font(.system(size:13)).foregroundStyle(.white.opacity(0.65))
-                }
+                Text(trip.legs.last?.snapshot?.flight.destination.city.nonempty ?? trip.legs.last?.destinationIata ?? "Your next trip")
+                    .font(.system(size:34,weight:.bold)).tracking(-1.3)
                 Spacer(minLength:4)
                 Image(systemName:"arrow.up.right").font(.system(size:17,weight:.medium)).padding(11)
                     .background(.white.opacity(0.09),in:Circle())
             }
             HStack(spacing:14) {
                 VStack(alignment:.leading,spacing:5) {
-                    Text(leg?.origin ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
-                    Text(FlightTime.clock(flight?.departure,zone:flight?.origin.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
+                    Text(trip.legs.first?.origin ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
+                    Text(FlightTime.clock(departure?.departure,zone:departure?.origin.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
                 }
                 RouteLine(color:.white.opacity(0.65)).padding(.horizontal,8)
                 VStack(alignment:.trailing,spacing:5) {
-                    Text(leg?.destination ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
-                    Text(FlightTime.clock(flight?.arrival,zone:flight?.destination.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
+                    Text(trip.legs.last?.destination ?? "—").font(.system(size:34,weight:.medium,design:.rounded)).tracking(1)
+                    Text(FlightTime.clock(arrival?.arrival,zone:arrival?.destination.timezone)).font(.system(size:17,weight:.medium,design:.monospaced))
                 }
             }
             Rectangle().fill(.white.opacity(0.15)).frame(height:1)
             HStack {
                 VStack(alignment:.leading,spacing:4) {
-                    Text(leg?.flightNumber ?? "").font(.system(size:13,weight:.bold,design:.monospaced))
-                    Text(trip.legs.count>1 ? "\(trip.legs.count) flights · \(trip.route)":"Direct flight")
-                        .font(.system(size:11)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    Text(trip.legs.map(\.flightNumber).joined(separator:" · ")).font(.system(size:13,weight:.bold,design:.monospaced))
+                    Text(trip.route)
+                        .font(.system(size:11)).foregroundStyle(.white.opacity(0.6))
                 }
                 Spacer()
-                StatusBadge(flight:flight,dark:true)
+                StatusBadge(trip:trip,dark:true).fixedSize()
             }
         }.padding(24).foregroundStyle(.white)
             .background(LinearGradient(colors:[Deck.ink,Color(red:0.16,green:0.27,blue:0.34)],startPoint:.topLeading,endPoint:.bottomTrailing))
@@ -66,7 +62,7 @@ struct IncomingCard: View {
                 .font(.system(size:20,weight:.medium)).foregroundStyle(Deck.green)
                 .frame(width:44,height:44).background(Deck.green.opacity(0.08),in:RoundedRectangle(cornerRadius:14))
             VStack(alignment:.leading,spacing:6) {
-                Text("YOUR INCOMING AIRCRAFT").eyebrow().foregroundStyle(Deck.muted)
+                Text("FOR \(leg.flightNumber)").eyebrow().foregroundStyle(Deck.muted)
                 if let inbound {
                     Text("\(inbound.origin.iata) → \(inbound.destination.iata)")
                         .font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(Deck.ink)
@@ -86,7 +82,7 @@ struct IncomingCard: View {
                     Text(inbound.actualArrival != nil ? "ARRIVED":"EXPECTED").font(.system(size:9,weight:.bold)).foregroundStyle(Deck.green)
                 }
             }
-        }.deckCard(padding:18)
+        }.deckCard(padding:18).accessibilityElement(children:.combine)
     }
 }
 

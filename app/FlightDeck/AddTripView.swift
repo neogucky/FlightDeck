@@ -3,7 +3,6 @@ import SwiftUI
 struct AddTripView: View {
     @Environment(FlightStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
     @State private var legs = [NewLeg()]
     @State private var saving = false
     @State private var error: String?
@@ -41,12 +40,6 @@ struct AddTripView: View {
                         Text("Add one flight, or keep every connection together. Past flights are welcome too.")
                             .font(.subheadline).foregroundStyle(Deck.muted).lineSpacing(3)
                     }
-                    VStack(alignment:.leading,spacing:9) {
-                        Text("TRIP NAME · OPTIONAL").eyebrow().foregroundStyle(Deck.muted)
-                        TextField("A weekend in Zurich",text:$title).font(.system(size:17,weight:.medium))
-                            .focused($focusedField,equals:"title")
-                            .accessibilityIdentifier("tripTitle")
-                    }.deckCard()
                     ForEach($legs) { $leg in
                         VStack(alignment:.leading,spacing:18) {
                             HStack {
@@ -101,7 +94,7 @@ struct AddTripView: View {
                     Button {
                         saving = true; error = nil
                         Task {
-                            do { try await store.add(NewTrip(title:title,legs:legs)); dismiss() }
+                            do { try await store.add(NewTrip(title:"",legs:legs)); dismiss() }
                             catch { self.error = error.localizedDescription }
                             saving = false
                         }

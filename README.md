@@ -8,6 +8,7 @@ A personal flight companion: your upcoming flight, the incoming aircraft and eve
 
 - A saved flight journal, including manually entered past flights.
 - Single flights and trips with up to eight connected legs; each leg has its own departure date.
+- A whole-trip overview with first departure, final arrival, all flight numbers and a combined status; a separate incoming-aircraft card for each remaining leg. Trips are identified automatically, with no name to enter.
 - Upcoming trips sorted by date, with flight status, gates, local times, aircraft registration/type and the incoming flight when identified by FlightAware.
 - Automatic refresh on opening/foregrounding and while the app is visible when data is over 15 minutes old. Pull-to-refresh requests an immediate update, subject to a 60-second safety cache and spending limits.
 - Offline device cache, separate demo and server data, connection-token storage in Keychain.
@@ -95,6 +96,14 @@ xcodebuild -project app/FlightDeck.xcodeproj -scheme FlightDeck \
 ```
 
 The checked-in project has no third-party iOS dependencies. After adding Swift files, regenerate the deterministic project with `python app/generate_project.py` (preserves no manual project-file edits).
+
+Check trip status aggregation on macOS (including a delayed/cancelled second leg and missing status):
+
+```sh
+swiftc app/FlightDeck/Models.swift app/FlightDeck/DemoData.swift \
+  app/TripPresentationTests.swift -o /tmp/flightdeck-trip-tests
+/tmp/flightdeck-trip-tests
+```
 
 The native API smoke test uses the actual app network client and Codable models against a disposable local demo server. Start `python tests/serve_fixture.py` from `server/`, then from the repository root compile and run:
 

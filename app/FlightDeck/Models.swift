@@ -112,6 +112,28 @@ struct Trip: Codable, Identifiable, Hashable {
         return legs.last?.snapshot?.flight.destination.city.nonempty ?? legs.last?.destinationIata ?? "Upcoming trip"
     }
     var nextLeg: FlightLeg? { legs.first(where: { !$0.isPast }) ?? legs.first }
+    var status: JourneyStatus {
+        if isPast { return JourneyStatus(label:"Arrived") }
+        let remaining = legs.filter { !$0.isPast }
+        let flights = remaining.compactMap { $0.snapshot?.flight }
+        if flights.contains(where: { $0.cancelled }) { return JourneyStatus(label:"Flight cancelled",warning:true) }
+        if flights.contains(where: { $0.diverted }) { return JourneyStatus(label:"Flight diverted",warning:true) }
+        if flights.contains(where: { max($0.departureDelayMinutes,$0.arrivalDelayMinutes) >= 5 }) {
+            return JourneyStatus(label:"Flight delayed",warning:true)
+        }
+        if flights.contains(where: { $0.actualDeparture != nil }) { return JourneyStatus(label:"In progress") }
+        guard !remaining.isEmpty, flights.count == remaining.count else { return JourneyStatus(label:"Awaiting status") }
+        if remaining.count < legs.count { return JourneyStatus(label:"Connecting") }
+        if flights.allSatisfy({ $0.statusLabel == "On time" }) {
+            return JourneyStatus(label:legs.count > 1 ? "All on time":"On time")
+        }
+        return JourneyStatus(label:flights.count == 1 ? flights[0].statusLabel:"Check status")
+    }
+}
+
+struct JourneyStatus: Equatable {
+    var label: String
+    var warning = false
 }
 
 extension String {

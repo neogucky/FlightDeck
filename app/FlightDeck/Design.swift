@@ -31,13 +31,23 @@ struct RouteLine: View {
 }
 
 struct StatusBadge: View {
-    let flight: FlightInfo?
-    var dark = false
-    private var warning: Bool { flight?.cancelled == true || flight?.diverted == true || (flight?.departureDelayMinutes ?? 0) >= 5 }
+    let label: String
+    let warning: Bool
+    let dark: Bool
+    init(flight: FlightInfo?, dark: Bool = false) {
+        label = flight?.statusLabel ?? "Awaiting status"
+        warning = flight?.cancelled == true || flight?.diverted == true || (flight?.departureDelayMinutes ?? 0) >= 5
+        self.dark = dark
+    }
+    init(trip: Trip, dark: Bool = false) {
+        label = trip.status.label
+        warning = trip.status.warning
+        self.dark = dark
+    }
     var body: some View {
         HStack(spacing:5) {
             Circle().fill(warning ? Deck.orange : (dark ? Color.mint:Deck.green)).frame(width:5,height:5)
-            Text(flight?.statusLabel ?? "Awaiting status").font(.system(size:11,weight:.semibold))
+            Text(label).font(.system(size:11,weight:.semibold))
         }.foregroundStyle(dark ? .white : warning ? Deck.orange:Deck.green)
             .padding(.horizontal,10).padding(.vertical,7)
             .background(dark ? Color.white.opacity(0.10) : (warning ? Deck.orange:Deck.green).opacity(0.08),in:Capsule())
