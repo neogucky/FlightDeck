@@ -5,7 +5,7 @@ enum ConnectionError: LocalizedError {
     case invalidURL, unauthorized, response(String)
     var errorDescription: String? {
         switch self {
-        case .invalidURL: "Enter an HTTPS server address without a path, query, or embedded credentials."
+        case .invalidURL: "Enter an HTTPS server address, optionally with a base path such as /flights, without a query or embedded credentials."
         case .unauthorized: "Your session has expired. Sign in again in Settings."
         case .response(let message): message
         }
@@ -49,11 +49,15 @@ struct APIClient {
     init(address: String, token: String = "") throws {
         guard let url = URL(string:address.trimmingCharacters(in:.whitespacesAndNewlines)),
               let host = url.host, url.user == nil, url.password == nil,
-              url.query == nil, url.fragment == nil, url.path.isEmpty || url.path == "/",
+              url.query == nil, url.fragment == nil,
+              url.path.isEmpty || url.path.range(of:"^(/[A-Za-z0-9_~-]+)*/?$",options:.regularExpression) != nil,
               url.scheme == "https" || (url.scheme == "http" && ["localhost","127.0.0.1","::1"].contains(host)) else {
             throw ConnectionError.invalidURL
         }
-        self.baseURL = url; self.token = token
+        guard let directory = URL(string:url.absoluteString.hasSuffix("/") ? url.absoluteString : url.absoluteString+"/") else {
+            throw ConnectionError.invalidURL
+        }
+        self.baseURL = directory; self.token = token
     }
     func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> ServerState {
         try await send(path,method:method,body:body,as:ServerState.self)
@@ -66,8 +70,9 @@ struct APIClient {
         _ = try await data(path,method:method,body:nil)
     }
     private func data(_ path: String, method: String, body: Data?) async throws -> Data {
-        guard path.hasPrefix("/v1/"), !path.hasPrefix("//"),let url = URL(string:path,relativeTo:baseURL),
-              url.host == baseURL.host, url.scheme == baseURL.scheme, url.port == baseURL.port else { throw ConnectionError.invalidURL }
+        guard path.hasPrefix("/v1/"), !path.hasPrefix("//"),let url = URL(string:String(path.dropFirst()),relativeTo:baseURL),
+              url.host == baseURL.host, url.scheme == baseURL.scheme, url.port == baseURL.port,
+              url.path.hasPrefix(baseURL.path.hasSuffix("/") ? baseURL.path : baseURL.path+"/") else { throw ConnectionError.invalidURL }
         var req = URLRequest(url:url); req.httpMethod = method; req.timeoutInterval = 60
         if !token.isEmpty { req.setValue("Bearer \(token)",forHTTPHeaderField:"Authorization") }
         req.setValue("application/json",forHTTPHeaderField:"Content-Type");req.httpBody = body

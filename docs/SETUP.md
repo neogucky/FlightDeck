@@ -25,6 +25,34 @@ The default live server allows registration. Set `FLIGHTDECK_REGISTRATION_OPEN=f
 
 The server listens at `127.0.0.1:8787`. Point a dedicated HTTPS reverse-proxy hostname to it. Preserve the Authorization header and HTTP methods, avoid redirects, and never expose the checkout, `.env`, `data` or `secrets` as static files. The shipped runner uses one worker and disables access logging and forwarded-header trust.
 
+### This media server: HTTPS under `/flights`
+
+The deployment in `C:\Users\neogu\media` uses the existing Caddy reverse proxy
+and public HTTPS relay. Enter `https://158.180.55.241:8080/flights` in the app.
+The client must include the base-path support in `APIClient.swift` from this checkout.
+
+The `flightdeck` Compose service builds `server/Dockerfile`, runs one unprivileged
+worker in live mode and restarts automatically. Port 8787 is internal to Docker.
+Caddy strips `/flights` before proxying API requests, preserving methods and
+Authorization headers. `/flights` returns server discovery without a redirect;
+`/flights/health` and `/flights/v1/server` provide health and protocol checks.
+
+The named volume `media_flightdeck-data` stores the account database, user data
+and `/data/secrets/master.key`. Preserve the volume across image rebuilds;
+back up the complete data and master key securely. Never remove this volume
+when updating. Registration is enabled; create your account in the app and add
+your own AeroAPI key there. No provider key is needed to start the server.
+
+From the media workspace, build and deploy only this service, then validate and
+reload the existing Docker proxy:
+
+```powershell
+docker compose build flightdeck
+docker compose up -d --no-deps flightdeck
+docker exec media-reverse-proxy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker exec media-reverse-proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
 ### Windows service
 
 From an administrator PowerShell in `server/`:

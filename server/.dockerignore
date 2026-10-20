@@ -1,0 +1,4 @@
+*
+!requirements.lock
+!flightdeck/
+!flightdeck/*.py
