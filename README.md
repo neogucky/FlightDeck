@@ -46,6 +46,7 @@ You can also find flights in calendars already synced with iOS Calendar:
 - Select the calendars to search in **Settings → Calendar import**.
 - Enable **Automatically suggest flights**, or use **Search calendars now** whenever you want.
 - Review suggestions before adding them. Dismissed flights stay dismissed for that account on that device, including after restarting the app.
+- Import buttons show an animated plane while adding flights and prevent duplicate taps until the request finishes.
 - Calendar entries such as `Flight to Frankfurt (LH 1189)` supply the flight number and date. Flights departing at or after the previous arrival and less than 12 hours later are suggested as a connected trip.
 
 <table>
@@ -108,7 +109,7 @@ The server listens at `127.0.0.1:8787`. For a physical phone, place it behind yo
     <th>Bring your own API key</th>
   </tr>
   <tr>
-    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with an empty, outlined Server URL input, Connect to server button and secondary Explore the demo option"></a></td>
+    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with an empty Server URL input in a labelled card, Connect to server button and secondary Explore the demo option"></a></td>
     <td><a href="previews/api-key-setup.png"><img src="previews/api-key-setup.png" width="250" alt="The AeroAPI setup guide with account instructions, provider links and a secure key-entry field"></a></td>
   </tr>
 </table>

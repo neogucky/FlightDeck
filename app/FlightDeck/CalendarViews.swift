@@ -91,6 +91,9 @@ struct CalendarSuggestionsView: View {
     @Environment(FlightStore.self) private var store
     @Environment(CalendarImportStore.self) private var calendar
     @Environment(\.dismiss) private var dismiss
+    @State private var importingJourneyID: String?
+    @State private var addingAll = false
+    private var busy: Bool { calendar.isImporting || importingJourneyID != nil || addingAll }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -102,7 +105,7 @@ struct CalendarSuggestionsView: View {
                         Text("No new flights found in the next six months. Already tracked and dismissed flights are excluded.")
                             .font(.subheadline).foregroundStyle(Deck.muted).accessibilityIdentifier("noCalendarFlightSuggestions")
                     } else {
-                        Text("Review your flights below. Dismiss a flight to stop future suggestions. Connections use your calendar’s times.")
+                        Text("Review your flights below. Dismiss a journey to stop future suggestions. Connections use your calendar’s times.")
                             .font(.subheadline).foregroundStyle(Deck.muted)
                     }
                     ForEach(calendar.journeys) { journey in
@@ -114,27 +117,31 @@ struct CalendarSuggestionsView: View {
                                     .font(.caption).foregroundStyle(Deck.muted).accessibilityIdentifier("dismissJourney-\(journey.flights[0].flightNumber)")
                             }
                             ForEach(journey.flights) { flight in
-                                HStack(alignment:.top,spacing:12) {
-                                    VStack(alignment:.leading,spacing:6) {
+                                VStack(alignment:.leading,spacing:6) {
                                         Text(flight.flightNumber).font(.system(size:19,weight:.semibold,design:.monospaced))
                                         Text("To \(flight.destination)").font(.subheadline.weight(.medium))
                                         Text(flight.timeLabel).font(.caption).foregroundStyle(Deck.muted)
                                         Text("\(flight.timeZoneID) · \(flight.calendarTitle)").font(.system(size:10)).foregroundStyle(Deck.muted)
-                                    }
-                                    Spacer(minLength:0)
-                                    Button { calendar.dismiss([flight]) } label: { Image(systemName:"xmark.circle").foregroundStyle(Deck.muted) }
-                                        .accessibilityLabel("Don’t suggest \(flight.flightNumber) again")
-                                        .accessibilityIdentifier("dismissCalendar-\(flight.flightNumber)")
-                                }
+                                }.frame(maxWidth:.infinity,alignment:.leading)
                             }
                             Button {
-                                Task { if await calendar.add([journey],to:store),calendar.suggestions.isEmpty { dismiss() } }
+                                guard !busy else { return }
+                                importingJourneyID = journey.id
+                                Task {
+                                    defer { importingJourneyID = nil }
+                                    if await calendar.add([journey],to:store),calendar.suggestions.isEmpty { dismiss() }
+                                }
                             } label: {
-                                Label(journey.flights.count>1 ? "Add connected trip":"Add flight",systemImage:"plus")
+                                HStack(spacing:8) {
+                                    if importingJourneyID == journey.id { PlaneActivityIndicator() }
+                                    else { Image(systemName:"plus") }
+                                    Text(importingJourneyID == journey.id ? (journey.flights.count>1 ? "Adding trip…":"Adding flight…"):
+                                        (journey.flights.count>1 ? "Add connected trip":"Add flight"))
+                                }
                                     .font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity).padding(14)
                                     .background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
                             }.accessibilityIdentifier("addCalendarJourney-\(journey.flights[0].flightNumber)")
-                        }.deckCard().disabled(calendar.isImporting)
+                        }.deckCard().disabled(busy)
                     }
                     if let error = calendar.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                     if !calendar.suggestions.isEmpty {
@@ -144,20 +151,25 @@ struct CalendarSuggestionsView: View {
                 }.padding(24)
             }.background(Deck.paper).foregroundStyle(Deck.ink)
                 .navigationTitle("Calendar flights").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement:.topBarLeading) { Button(calendar.suggestions.isEmpty ? "Done":"Later") { dismiss() }.disabled(calendar.isImporting) } }
+                .toolbar { ToolbarItem(placement:.topBarLeading) { Button(calendar.suggestions.isEmpty ? "Done":"Later") { dismiss() }.disabled(busy) } }
                 .safeAreaInset(edge:.bottom) {
-                    if calendar.suggestions.count>1 {
+                    if calendar.suggestions.count>1 || addingAll {
                         Button {
+                            guard !busy else { return }
                             let journeys = calendar.journeys
-                            Task { if await calendar.add(journeys,to:store) { dismiss() } }
+                            addingAll = true
+                            Task {
+                                defer { addingAll = false }
+                                if await calendar.add(journeys,to:store) { dismiss() }
+                            }
                         } label: {
                             HStack {
-                                if calendar.isImporting { ProgressView().tint(.white) }
-                                Text(calendar.isImporting ? "Adding flights…":"Add all \(calendar.suggestions.count) flights").fontWeight(.semibold)
+                                if addingAll { PlaneActivityIndicator() }
+                                Text(addingAll ? "Adding flights…":"Add all \(calendar.suggestions.count) flights").fontWeight(.semibold)
                             }.frame(maxWidth:.infinity).padding(18).foregroundStyle(.white).background(Deck.ink,in:RoundedRectangle(cornerRadius:16))
-                        }.disabled(calendar.isImporting).padding(20).background(Deck.paper).accessibilityIdentifier("addAllCalendarFlights")
+                        }.disabled(busy).padding(20).background(Deck.paper).accessibilityIdentifier("addAllCalendarFlights")
                     }
-                }.interactiveDismissDisabled(calendar.isImporting)
+                }.interactiveDismissDisabled(busy)
         }
     }
 }

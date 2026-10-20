@@ -42,13 +42,12 @@ struct AddTripView: View {
                                         .accessibilityLabel("Remove flight")
                                 }
                             }
-                            VStack(alignment:.leading,spacing:8) {
-                                Text("FLIGHT NUMBER").eyebrow().foregroundStyle(Deck.muted)
+                            DeckField("FLIGHT NUMBER") {
                                 TextField("LX1055",text:$leg.flightNumber).font(.system(size:23,weight:.medium,design:.monospaced))
                                     .focused($focusedField,equals:"number-\(leg.id)")
                                     .textInputAutocapitalization(.characters).autocorrectionDisabled()
                                     .accessibilityIdentifier("flightNumber\(legs.firstIndex(where:{$0.id == leg.id}) ?? 0)")
-                            }
+                            }.onTapGesture { focusedField = "number-\(leg.id)" }
                             Divider()
                             DatePicker("Departure date",selection:Binding(get:{FlightTime.dayDate(leg.departureDate)},set:{leg.departureDate = FlightTime.day($0)}),displayedComponents:.date)
                                 .font(.subheadline).tint(Deck.ink)

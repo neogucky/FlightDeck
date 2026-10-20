@@ -148,7 +148,7 @@ final class FlightDeckUITests: XCTestCase {
     }
     func testCalendarSuggestionsDismissalImportAndManualSearchPersist() {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset"];app.launch()
+        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset","--uitesting-calendar-loading"];app.launch()
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
         app.tabBars.buttons["Settings"].tap()
         let settings = app.buttons["calendarImportSettings"]
@@ -165,14 +165,20 @@ final class FlightDeckUITests: XCTestCase {
         app.buttons["reviewCalendarSuggestions"].tap()
         XCTAssertTrue(app.staticTexts["2 CONNECTED FLIGHTS"].waitForExistence(timeout:5))
         capture("Review calendar connections",app)
-        let declined = app.buttons["dismissCalendar-LH1189"]
+        XCTAssertFalse(app.buttons["dismissCalendar-LH2055"].exists)
+        let declined = app.buttons["dismissJourney-LH1189"]
         for _ in 0..<4 where !declined.isHittable { app.swipeUp() }
         XCTAssertTrue(declined.isHittable);declined.tap()
         let add = app.buttons["addCalendarJourney-LH2055"]
         for _ in 0..<4 where !add.isHittable { app.swipeDown() }
         add.tap()
+        XCTAssertTrue(add.label.contains("Adding trip"))
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertFalse(app.buttons["dismissJourney-LH2055"].isEnabled)
+        capture("Calendar import in progress",app)
+        XCTAssertTrue(add.waitForNonExistence(timeout:10))
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
-        XCTAssertFalse(app.buttons["reviewCalendarSuggestions"].exists)
+        XCTAssertTrue(app.buttons["reviewCalendarSuggestions"].waitForNonExistence(timeout:10))
         app.terminate()
         app.launchArguments = ["--uitesting-preserve","--uitesting-calendar"];app.launch()
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
@@ -192,7 +198,30 @@ final class FlightDeckUITests: XCTestCase {
         search.tap()
         XCTAssertTrue(app.staticTexts["LH1189"].waitForExistence(timeout:10))
         XCTAssertFalse(app.staticTexts["LH2055"].exists)
-        app.buttons["dismissCalendar-LH1189"].tap()
+        app.buttons["dismissJourney-LH1189"].tap()
+        app.buttons["Done"].tap()
+    }
+    func testCalendarBulkImportShowsProgressAndDisablesActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset","--uitesting-calendar-loading"];app.launch()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        app.tabBars.buttons["Settings"].tap()
+        let settings = app.buttons["calendarImportSettings"]
+        for _ in 0..<3 where !settings.isHittable { app.swipeUp() }
+        settings.tap()
+        XCTAssertTrue(app.switches["calendar-fixture"].waitForExistence(timeout:10))
+        app.switches["calendar-fixture"].tap()
+        app.buttons["searchCalendarFlights"].tap()
+        let add = app.buttons["addAllCalendarFlights"]
+        XCTAssertTrue(add.waitForExistence(timeout:10))
+        add.tap()
+        XCTAssertTrue(add.label.contains("Adding flights"))
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertFalse(app.buttons["dismissJourney-LH2055"].isEnabled)
+        capture("Bulk calendar import in progress",app)
+        XCTAssertTrue(add.waitForNonExistence(timeout:10))
+        app.buttons["searchCalendarFlights"].tap()
+        XCTAssertTrue(app.staticTexts["noCalendarFlightSuggestions"].waitForExistence(timeout:10))
         app.buttons["Done"].tap()
     }
     func testPublishedScheduleShowsRouteWithoutClaimingLiveStatus() {
