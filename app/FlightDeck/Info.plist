@@ -13,6 +13,7 @@
     <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to your personal FlightDeck server on your local network.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>FlightDeck reads your selected calendars to suggest upcoming flights and connections. It never creates, changes or deletes calendar events.</string>
     <key>NSAppTransportSecurity</key><dict>
         <key>NSAllowsLocalNetworking</key><true/>
         <key>NSExceptionDomains</key><dict><key>localhost</key><dict><key>NSExceptionAllowsInsecureHTTPLoads</key><true/></dict></dict>

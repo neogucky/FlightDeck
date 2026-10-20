@@ -92,6 +92,9 @@ struct FlightLeg: Codable, Identifiable, Hashable {
     var destinationIata: String?
     var snapshot: FlightSnapshot?
     var issue: RefreshIssue? = nil
+    var calendarDeparture: String? = nil
+    var calendarArrival: String? = nil
+    var calendarTimeZone: String? = nil
     var origin: String { snapshot?.flight.origin.iata ?? originIata ?? "—" }
     var destination: String { snapshot?.flight.destination.iata ?? destinationIata ?? "—" }
     var departureDay: Date { FlightTime.dayDate(departureDate) }
@@ -224,17 +227,24 @@ struct NewLeg: Encodable, Identifiable {
     var id = UUID()
     var flightNumber = ""
     var departureDate = FlightTime.day(Date())
-    enum CodingKeys: String, CodingKey { case flightNumber, departureDate }
+    var calendarDeparture: String? = nil
+    var calendarArrival: String? = nil
+    var calendarTimeZone: String? = nil
+    enum CodingKeys: String, CodingKey { case flightNumber, departureDate, calendarDeparture, calendarArrival, calendarTimeZone }
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy:CodingKeys.self)
         try container.encode(flightNumber.canonicalFlightNumber,forKey:.flightNumber)
         try container.encode(departureDate,forKey:.departureDate)
+        try container.encodeIfPresent(calendarDeparture,forKey:.calendarDeparture)
+        try container.encodeIfPresent(calendarArrival,forKey:.calendarArrival)
+        try container.encodeIfPresent(calendarTimeZone,forKey:.calendarTimeZone)
     }
 }
 
 struct NewTrip: Encodable {
     var title: String
     var legs: [NewLeg]
+    var importId: String? = nil
 }
 
 enum JSONCoding {

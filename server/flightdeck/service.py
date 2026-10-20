@@ -67,6 +67,7 @@ class FlightService:
     def create(self, payload):
         trip={'id':str(uuid4()),'title':payload.title.strip(),'created_at':self.clock().isoformat(),
               'legs':[dict(l.model_dump(mode='json'),id=str(uuid4())) for l in payload.legs]}
+        if payload.import_id: return self.db.save_imported_trip(trip,payload.import_id)
         self.db.save_trip(trip)
         return trip
 

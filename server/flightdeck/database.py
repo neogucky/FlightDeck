@@ -76,6 +76,18 @@ class Database:
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO trips VALUES (?,?,?)", (trip['id'], trip['created_at'], json.dumps(trip)))
 
+    def save_imported_trip(self, trip, import_id):
+        # Idempotency and flight-level deduplication are atomic and scoped to this tenant.
+        with self.transaction() as db:
+            existing=[json.loads(row[0]) for row in db.execute('SELECT payload FROM trips')]
+            if any(t.get('import_id')==import_id for t in existing): return None
+            known={(l['flight_number'],l['departure_date']) for t in existing for l in t['legs']}
+            trip['legs']=[l for l in trip['legs'] if (l['flight_number'],l['departure_date']) not in known]
+            if not trip['legs']: return None
+            trip['import_id']=import_id
+            db.execute('INSERT INTO trips VALUES (?,?,?)',(trip['id'],trip['created_at'],json.dumps(trip)))
+        return trip
+
     def delete_trip(self, trip_id):
         with self.transaction() as db:
             row = db.execute("SELECT payload FROM trips WHERE id=?", (trip_id,)).fetchone()

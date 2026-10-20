@@ -58,6 +58,18 @@ struct SettingsView: View {
                                 .frame(maxWidth:.infinity).padding(16).background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
                         }.accessibilityIdentifier("leaveDemo")
                     }
+                    NavigationLink {
+                        CalendarSettingsView()
+                    } label: {
+                        HStack(spacing:14) {
+                            Image(systemName:"calendar.badge.plus").font(.system(size:23)).foregroundStyle(Deck.ink)
+                            VStack(alignment:.leading,spacing:5) {
+                                Text("Calendar import").font(.subheadline.weight(.semibold))
+                                Text("Find upcoming flights on your iPhone").font(.caption).foregroundStyle(Deck.muted)
+                            }
+                            Spacer();Image(systemName:"chevron.right").font(.caption).foregroundStyle(Deck.muted)
+                        }.deckCard()
+                    }.buttonStyle(.plain).accessibilityIdentifier("calendarImportSettings")
                     if let error = store.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                     SectionTitle(title:"About FlightDeck")
                     VStack(alignment:.leading,spacing:14) {

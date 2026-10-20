@@ -175,7 +175,7 @@ def create_app(settings=None, *, transport=None, clock=None):
     async def add_trip(payload: TripInput,user=Depends(authenticated)):
         async with scoped(user) as (user,db,service,gate,api):
             trip = service.create(payload)
-            issues = await service.refresh(trip['id'])
+            issues = await service.refresh(trip['id']) if trip else None
             return state(user,service,gate,issues)
 
     @app.delete('/v1/trips/{trip_id}')

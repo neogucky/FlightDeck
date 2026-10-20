@@ -49,3 +49,9 @@ Back up SQLite databases consistently using SQLite's backup API, including the a
 - [FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi/)
 
 See `BUDGET.md` for the conservative accounting rules and their limits. Native tests and provider mocks are development validation, not an independent security audit.
+
+## Calendar imports
+
+Calendar discovery takes place in the iOS app through EventKit, restricted by the app to selected calendars. iOS requires full calendar permission for reads; FlightDeck never edits calendar events. The server receives no calendar credentials, event descriptions, source IDs, calendar names or event titles. Only explicitly accepted flight metadata and a hashed import ID are submitted under the current authenticated session. Source times have UTC offsets and are validated against the departure date and chronological connection order.
+
+Calendar imports use an atomic per-tenant transaction to deduplicate both import identities and existing flight number/date pairs. Duplicate retries return existing account state without provider refreshes. They do not reset, delete or reduce billing reservations. Device calendar preferences and hashed dismissals are separated by server/account and remain on the device; leaving or signing out of an account clears the active suggestion state.

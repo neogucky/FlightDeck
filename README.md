@@ -4,7 +4,7 @@ A flight companion that keeps your whole journey, incoming aircraft and flight h
 
 [Overview](previews/overview.png) · [Three flights](previews/overview-three-flights.png) · [Longer trips](previews/overview-long-trip.png) · [Validation](VALIDATION.md)
 
-[Schedule overview](previews/schedule-overview.png) · [Start page](previews/start.png) · [Add flight](previews/add-flight.png) · [Connected flights](previews/add-connected-flights.png) · [Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
+[Calendar settings](previews/calendar-settings.png) · [Calendar suggestions](previews/calendar-suggestions.png) · [Schedule overview](previews/schedule-overview.png) · [Start page](previews/start.png) · [Add flight](previews/add-flight.png) · [Connected flights](previews/add-connected-flights.png) · [Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
 
 ## Accounts and flight tracking
 
@@ -17,6 +17,7 @@ A flight companion that keeps your whole journey, incoming aircraft and flight h
 - See published routes and planned times ahead of departure, then live flight status, aircraft details and a separate incoming-aircraft card per remaining leg as live data becomes available. Schedule-only data is labeled explicitly and never presented as confirmed on-time status.
 - Live information refreshes when over 15 minutes old while the app is visible. Advance schedules and airport metadata are cached for 24 hours to conserve the budget. Pull-to-refresh can update a schedule sooner, subject to the 60-second safety cache, rate limits and spending gate.
 - Keep manually entered flight history permanently. Provider details expire after 29 days. Device caches are partitioned by server and user and cleared on sign-out.
+- Find upcoming flights in selected iOS calendars, suggest new flights automatically while the app is active, or search manually. Remember dismissed flights per FlightDeck account and device.
 - Explore a separate local demo without making provider requests. Push notifications and background polling remain deferred.
 
 See [security and account isolation](server/SECURITY.md) and [budget accounting](server/BUDGET.md) for the exact behavior and limits. Write-only API-key setup does not hide a key from the operator of a running server that must decrypt it for provider calls.
@@ -77,6 +78,22 @@ Nonempty legacy shared databases fail closed rather than being assigned to the f
 5. Add your flights and check **Usage** for that account's budget and history.
 
 For a private CA/self-signed setup, the hostname-matching server certificate must be trusted on the iPhone. The app uses normal system TLS validation and never accepts arbitrary certificates. HTTP is supported only for localhost development. Development simulator builds need local signing for Keychain access; no paid Apple certificate is required for ad-hoc simulator signing.
+
+## iOS calendar import
+
+Open **Settings → Calendar import**, allow calendar access, and select calendars. Google calendars must be synced with iOS Calendar; installing only the Google Calendar app does not expose its calendars through EventKit. iOS 17 requires full calendar access to read events. FlightDeck never writes, edits or deletes calendar events.
+
+- **Automatically suggest flights** is off by default. When enabled, the app scans at launch/foreground and while active, including after calendar-change notifications. Suggestions appear as a review banner on Trips. It does not run a server calendar connection, background scheduler or push notification service.
+- **Search calendars now** performs a manual search regardless of the automatic setting. Both paths examine the next 180 days, including flights already in progress, and exclude cancelled/all-day events, completed flights, already tracked flights, and dismissed suggestions.
+- Titles such as `Flight to Frankfurt (LH 1189)` are recognized case-insensitively. Flight numbers are normalized; departure dates use the event timezone, falling back to the phone timezone for events without one. The review shows calendar times and the timezone used.
+- New flights form a connected trip if the next departure is at or after the previous arrival and strictly less than 12 hours later. Overlapping flights and a gap of exactly 12 hours remain separate. Groups are limited to eight legs, matching the server limit. This uses calendar timing as a heuristic, without confirming airport continuity.
+- Review and add a connected trip, a single flight, or all suggested journeys. **Dismiss** or a flight’s × button remembers the normalized flight number and departure date. Both automatic and manual searches respect dismissals across app restarts. **Later** keeps suggestions for review. **Reset dismissed suggestions** makes them eligible again.
+- Calendar selection, automatic-scan preference and hashed dismissal identities stay on the device and are partitioned by server/account; demo preferences are separate. Source event titles, calendar names, descriptions and source event identifiers are not sent to the server. Accepting a suggestion sends only the flight numbers, departure dates, offset-aware calendar flight times, timezone identifier and an opaque import identity.
+- Importing does not rearrange existing trips or automatically edit/delete already tracked flights after a calendar change. Imported calendar times are user-provided itinerary data. AeroAPI still supplies flight status, routes and aircraft data under the existing budget gate.
+
+The server atomically deduplicates imports per authenticated account by import identity and flight number/date. Retrying an accepted import does not create another trip or purchase more provider calls. Calendar scanning itself makes no AeroAPI calls; accepting new flights invokes normal budgeted enrichment.
+
+Calendar detection, refusal persistence, connection grouping, manual search and import/restart behavior are tested with synthetic calendar events on a separate simulator. Real Google-to-iOS sync, event timezones and permission behavior remain to be exercised on the physical phone after deployment.
 
 ## Flight data and history
 
@@ -149,6 +166,17 @@ swiftc app/FlightDeck/Models.swift app/FlightDeck/DemoData.swift \
   app/TripPresentationTests.swift -o /tmp/flightdeck-trip-tests
 /tmp/flightdeck-trip-tests
 ```
+
+
+Calendar title parsing, date/timezone handling and connection boundaries can be checked without a calendar account:
+
+```sh
+swiftc app/FlightDeck/Models.swift app/FlightDeck/CalendarFlightDetection.swift \
+  app/CalendarDetectionTests.swift -o /tmp/flightdeck-calendar-tests
+/tmp/flightdeck-calendar-tests
+```
+
+The native calendar UI test uses `--uitesting-calendar` on a separate test simulator; it never reads real calendar events. The initial `--uitesting-calendar-reset` flag resets only fixture preferences. The test verifies automatic discovery, a two-leg connection, remembered rejection after restart, deduplicated imports, manual rescan and explicit reset of dismissals.
 
 ## Later additions
 

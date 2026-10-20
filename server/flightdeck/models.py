@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 import re
 from typing import Annotated
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -34,6 +34,9 @@ class LegInput(BaseModel):
     departure_date: date
     origin_iata: str | None = None
     destination_iata: str | None = None
+    calendar_departure: datetime | None = None
+    calendar_arrival: datetime | None = None
+    calendar_time_zone: str | None = Field(default=None,max_length=100)
 
     @field_validator('flight_number',mode='before')
     @classmethod
@@ -58,17 +61,30 @@ class LegInput(BaseModel):
     def different_airports(self):
         if self.origin_iata and self.origin_iata == self.destination_iata:
             raise ValueError('Departure and arrival airports must differ')
+        if any(v is not None for v in [self.calendar_departure,self.calendar_arrival,self.calendar_time_zone]):
+            if not all(v is not None for v in [self.calendar_departure,self.calendar_arrival,self.calendar_time_zone]):
+                raise ValueError('Calendar flight times and timezone must be supplied together')
+            if self.calendar_departure.utcoffset() is None or self.calendar_arrival.utcoffset() is None:
+                raise ValueError('Calendar times must contain UTC offsets')
+            if self.calendar_arrival<=self.calendar_departure or self.calendar_departure.date()!=self.departure_date:
+                raise ValueError('Check calendar flight dates and times')
         return self
 
 
 class TripInput(BaseModel):
     title: str = Field(default='', max_length=80)
     legs: Annotated[list[LegInput], Field(min_length=1, max_length=8)]
+    import_id: str | None = Field(default=None,pattern=r'^[a-f0-9]{64}$')
 
     @model_validator(mode='after')
     def connected(self):
         for previous, following in zip(self.legs, self.legs[1:]):
-            if previous.departure_date > following.departure_date:
+            if previous.calendar_departure and following.calendar_departure:
+                if following.calendar_departure<previous.calendar_arrival:
+                    raise ValueError('Connected calendar flights must not overlap')
+                if self.import_id and (following.calendar_departure-previous.calendar_arrival).total_seconds()>=43200:
+                    raise ValueError('Calendar connections must be less than 12 hours')
+            elif previous.departure_date > following.departure_date:
                 raise ValueError('Connected flights must be in date order')
             if previous.destination_iata and following.origin_iata and previous.destination_iata != following.origin_iata:
                 raise ValueError('Connected flights must share the connecting airport')

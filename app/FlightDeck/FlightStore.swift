@@ -28,6 +28,12 @@ final class FlightStore {
     var isSignedIn: Bool { !demo && session != nil && account != nil }
     var canResumeSession: Bool { !isSignedIn && session != nil }
     var needsAPIKey: Bool { isSignedIn && serverMode == "live" && account?.hasApiKey == false }
+    var calendarProfileID: String? {
+        guard hasEnteredApp else { return nil }
+        if demo { return "demo" }
+        guard let account else { return nil }
+        return CalendarFlight.digest(address+"/"+account.id)
+    }
 
     init() {
         address = defaults.string(forKey:"serverAddress") ?? ""
@@ -198,9 +204,13 @@ final class FlightStore {
     }
     func add(_ payload: NewTrip) async throws {
         if demo {
-            let legs = payload.legs.map { l in
+            let known = CalendarFlightDetection.existingKeys(trips)
+            let inputs = payload.legs.filter { payload.importId == nil || !known.contains(CalendarFlight.key(number:$0.flightNumber,day:$0.departureDate)) }
+            guard !inputs.isEmpty else { return }
+            let legs = inputs.map { l in
                 FlightLeg(id:UUID().uuidString,flightNumber:l.flightNumber.canonicalFlightNumber,
-                    departureDate:l.departureDate,originIata:nil,destinationIata:nil,snapshot:nil)
+                    departureDate:l.departureDate,originIata:nil,destinationIata:nil,snapshot:nil,
+                    calendarDeparture:l.calendarDeparture,calendarArrival:l.calendarArrival,calendarTimeZone:l.calendarTimeZone)
             }
             trips.append(Trip(id:UUID().uuidString,title:payload.title,createdAt:FlightTime.iso(Date()),legs:legs));persist();return
         }

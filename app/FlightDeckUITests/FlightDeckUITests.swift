@@ -115,6 +115,55 @@ final class FlightDeckUITests: XCTestCase {
         app.terminate();app.launch()
         XCTAssertTrue(app.buttons["connectServer"].waitForExistence(timeout:10))
     }
+    func testCalendarSuggestionsDismissalImportAndManualSearchPersist() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset"];app.launch()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        app.tabBars.buttons["Settings"].tap()
+        let settings = app.buttons["calendarImportSettings"]
+        for _ in 0..<3 where !settings.isHittable { app.swipeUp() }
+        settings.tap()
+        XCTAssertTrue(app.switches["calendar-fixture"].waitForExistence(timeout:10))
+        app.switches["calendar-fixture"].tap()
+        app.switches["automaticCalendarSuggestions"].tap()
+        capture("Calendar import settings",app)
+        app.navigationBars.buttons.firstMatch.tap()
+        app.tabBars.buttons["Trips"].tap()
+        XCTAssertTrue(app.buttons["reviewCalendarSuggestions"].waitForExistence(timeout:10))
+        capture("Calendar flight suggestions banner",app)
+        app.buttons["reviewCalendarSuggestions"].tap()
+        XCTAssertTrue(app.staticTexts["2 CONNECTED FLIGHTS"].waitForExistence(timeout:5))
+        capture("Review calendar connections",app)
+        let declined = app.buttons["dismissCalendar-LH1189"]
+        for _ in 0..<4 where !declined.isHittable { app.swipeUp() }
+        XCTAssertTrue(declined.isHittable);declined.tap()
+        let add = app.buttons["addCalendarJourney-LH2055"]
+        for _ in 0..<4 where !add.isHittable { app.swipeDown() }
+        add.tap()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["reviewCalendarSuggestions"].exists)
+        app.terminate()
+        app.launchArguments = ["--uitesting-preserve","--uitesting-calendar"];app.launch()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        app.tabBars.buttons["Settings"].tap()
+        for _ in 0..<3 where !app.buttons["calendarImportSettings"].isHittable { app.swipeUp() }
+        app.buttons["calendarImportSettings"].tap()
+        XCTAssertTrue(app.buttons["searchCalendarFlights"].waitForExistence(timeout:5))
+        app.buttons["searchCalendarFlights"].tap()
+        XCTAssertTrue(app.staticTexts["noCalendarFlightSuggestions"].waitForExistence(timeout:10))
+        capture("Calendar scan excludes imported and dismissed flights",app)
+        app.buttons["Done"].tap()
+        let reset = app.buttons["resetDismissedCalendarFlights"]
+        for _ in 0..<4 where !reset.isHittable { app.swipeUp() }
+        reset.tap()
+        let search = app.buttons["searchCalendarFlights"]
+        for _ in 0..<4 where !search.isHittable { app.swipeDown() }
+        search.tap()
+        XCTAssertTrue(app.staticTexts["LH1189"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.staticTexts["LH2055"].exists)
+        app.buttons["dismissCalendar-LH1189"].tap()
+        app.buttons["Done"].tap()
+    }
     func testPublishedScheduleShowsRouteWithoutClaimingLiveStatus() {
         let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
         let username = "schedule-"+UUID().uuidString.prefix(8).lowercased()

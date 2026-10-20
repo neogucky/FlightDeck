@@ -2,7 +2,9 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(FlightStore.self) private var store
+    @Environment(CalendarImportStore.self) private var calendar
     @State private var adding = false
+    @State private var calendarSuggestions = false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -25,6 +27,18 @@ struct DashboardView: View {
                             Text("Connect your server in Settings.").foregroundStyle(Deck.muted)
                         }.font(.system(size:11)).foregroundStyle(Deck.ink).padding(.vertical,11).frame(maxWidth:.infinity)
                             .background(.white.opacity(0.8),in:Capsule())
+                    }
+                    if !calendar.suggestions.isEmpty {
+                        Button { calendarSuggestions = true } label: {
+                            HStack(spacing:13) {
+                                Image(systemName:"calendar.badge.plus").font(.system(size:24))
+                                VStack(alignment:.leading,spacing:5) {
+                                    Text("\(calendar.suggestions.count) calendar \(calendar.suggestions.count == 1 ? "flight":"flights") found").font(.subheadline.weight(.semibold))
+                                    Text("Review and add to your trips").font(.caption).foregroundStyle(Deck.muted)
+                                }
+                                Spacer();Image(systemName:"arrow.right")
+                            }.foregroundStyle(Deck.ink).deckCard(padding:18)
+                        }.buttonStyle(.plain).accessibilityIdentifier("reviewCalendarSuggestions")
                     }
                     if let error = store.error {
                         Label(error,systemImage:"wifi.exclamationmark").font(.footnote).foregroundStyle(Deck.orange).deckCard(padding:14)
@@ -69,6 +83,7 @@ struct DashboardView: View {
                 .refreshable { await store.refresh(force:true) }
                 .navigationDestination(for:String.self) { TripDetailView(tripID:$0) }
                 .sheet(isPresented:$adding) { AddTripView() }
+                .sheet(isPresented:$calendarSuggestions) { CalendarSuggestionsView() }
         }
     }
     private func stat(_ value: String, _ title: String) -> some View {
