@@ -138,6 +138,7 @@ struct JourneyStatus: Equatable {
 
 extension String {
     var nonempty: String? { isEmpty ? nil : self }
+    var canonicalFlightNumber: String { components(separatedBy:.whitespacesAndNewlines).joined().uppercased() }
 }
 
 struct Usage: Codable {
@@ -213,13 +214,16 @@ struct UsageReport: Decodable {
 struct LoginInput: Encodable { var username: String; var password: String }
 struct KeyInput: Encodable { var apiKey: String }
 
-struct NewLeg: Codable, Identifiable {
+struct NewLeg: Encodable, Identifiable {
     var id = UUID()
     var flightNumber = ""
     var departureDate = FlightTime.day(Date())
-    var originIata: String? = ""
-    var destinationIata: String? = ""
-    enum CodingKeys: String, CodingKey { case flightNumber, departureDate, originIata, destinationIata }
+    enum CodingKeys: String, CodingKey { case flightNumber, departureDate }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy:CodingKeys.self)
+        try container.encode(flightNumber.canonicalFlightNumber,forKey:.flightNumber)
+        try container.encode(departureDate,forKey:.departureDate)
+    }
 }
 
 struct NewTrip: Encodable {

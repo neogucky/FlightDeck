@@ -10,23 +10,15 @@ struct AddTripView: View {
 
     private var validation: String? {
         for (i,leg) in legs.enumerated() {
-            let number = leg.flightNumber.uppercased().replacingOccurrences(of:" ",with:"")
+            let number = leg.flightNumber.canonicalFlightNumber
             if number.range(of:"^[A-Z0-9]{2,3}[0-9]{1,4}[A-Z]?$",options:.regularExpression) == nil {
                 return "Enter a flight number for flight \(i+1), such as LX1055."
-            }
-            for code in [leg.originIata ?? "",leg.destinationIata ?? ""] where !code.isEmpty {
-                if code.range(of:"^[A-Za-z]{3}$",options:.regularExpression) == nil { return "Use three-letter airport codes, such as HAM." }
-            }
-            if let origin = leg.originIata?.nonempty, origin.uppercased() == leg.destinationIata?.uppercased() {
-                return "Departure and arrival airports must differ."
             }
         }
         for i in legs.indices.dropFirst() {
             if legs[i].departureDate < legs[i-1].departureDate { return "Keep connected flights in departure-date order." }
-            if let dest = legs[i-1].destinationIata?.nonempty, let origin = legs[i].originIata?.nonempty,
-               dest.uppercased() != origin.uppercased() { return "Connected flights must share the connecting airport." }
         }
-        let signatures = legs.map { "\($0.flightNumber.uppercased())/\($0.departureDate)/\($0.originIata ?? "")" }
+        let signatures = legs.map { "\($0.flightNumber.canonicalFlightNumber)/\($0.departureDate)" }
         if Set(signatures).count != signatures.count { return "Each flight in your trip must be different." }
         return nil
     }
@@ -60,21 +52,12 @@ struct AddTripView: View {
                             Divider()
                             DatePicker("Departure date",selection:Binding(get:{FlightTime.dayDate(leg.departureDate)},set:{leg.departureDate = FlightTime.day($0)}),displayedComponents:.date)
                                 .font(.subheadline).tint(Deck.ink)
-                            Divider()
-                            HStack(spacing:20) {
-                                airport("FROM",value:$leg.originIata,id:"origin\(legs.firstIndex(where:{$0.id == leg.id}) ?? 0)",placeholder:"HAM")
-                                Image(systemName:"arrow.right").foregroundStyle(Deck.line)
-                                airport("TO",value:$leg.destinationIata,id:"destination\(legs.firstIndex(where:{$0.id == leg.id}) ?? 0)",placeholder:"ZRH")
-                            }
-                            Text("Airport codes are optional, but help identify the right flight and preserve your route in history.")
-                                .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
                         }.deckCard()
                     }
                     if legs.count<8 {
                         Button {
                             var next = NewLeg()
                             next.departureDate = legs.last?.departureDate ?? FlightTime.day(Date())
-                            next.originIata = legs.last?.destinationIata ?? ""
                             legs.append(next)
                         } label: {
                             Label("Add connecting flight",systemImage:"plus.circle").font(.system(size:14,weight:.semibold))
@@ -87,6 +70,9 @@ struct AddTripView: View {
                     }
                     if store.isDemo {
                         Label("Saved in your demo journal. No API usage.",systemImage:"sparkles").font(.footnote).foregroundStyle(Deck.muted)
+                    } else {
+                        Text("Airports and times are filled in from your flight number and departure date when flight data is available.")
+                            .font(.footnote).foregroundStyle(Deck.muted)
                     }
                 }.padding(24)
             }.background(Deck.paper).foregroundStyle(Deck.ink).scrollDismissesKeyboard(.interactively)
@@ -115,14 +101,5 @@ struct AddTripView: View {
                 }
                 .interactiveDismissDisabled(saving)
         }
-    }
-    private func airport(_ title:String,value:Binding<String?>,id:String,placeholder:String) -> some View {
-        VStack(alignment:.leading,spacing:8) {
-            Text(title).eyebrow().foregroundStyle(Deck.muted)
-            TextField(placeholder,text:Binding(get:{value.wrappedValue ?? ""},set:{value.wrappedValue = String($0.prefix(3)).uppercased()}))
-                .focused($focusedField,equals:id)
-                .font(.system(size:25,weight:.medium,design:.rounded)).textInputAutocapitalization(.characters).autocorrectionDisabled()
-                .accessibilityIdentifier(id)
-        }.frame(maxWidth:.infinity,alignment:.leading)
     }
 }

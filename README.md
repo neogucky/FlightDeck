@@ -4,16 +4,16 @@ A flight companion that keeps your whole journey, incoming aircraft and flight h
 
 [Overview](previews/overview.png) · [Three flights](previews/overview-three-flights.png) · [Longer trips](previews/overview-long-trip.png) · [Validation](VALIDATION.md)
 
-[Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
+[Start page](previews/start.png) · [Add flight](previews/add-flight.png) · [Connected flights](previews/add-connected-flights.png) · [Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
 
 ## Accounts and flight tracking
 
-- Connect to your own server or one operated by someone you trust, then register or sign in with a username and password.
+- Start on a dedicated connection page. Connect to your own server or one operated by someone you trust, then register or sign in with a username and password. Demo mode is an explicit secondary choice; saved sessions open your flights directly.
 - Keep the session in the iPhone Keychain. Sessions last up to 90 days, with sign-out and sign-out-all-devices support.
 - Follow the in-app guide to obtain and submit your own FlightAware AeroAPI key. It is verified before saving, encrypted on the server, never returned by the API, and not stored in the app.
 - Every account has its own database: flights, incoming-aircraft snapshots, provider cache, spending ledger and request limits. An identical provider key cannot be attached to a different account, even after removal.
 - Watch your account's current usage and up to 12 months of history in the **Usage** tab. It distinguishes provider-reported spend, local reservations and the intentionally conservative total. Limits are currently managed in server configuration; per-user limit controls are a later addition.
-- Save individual flights or trips with up to eight connected legs, with separate departure dates. The overview displays flight numbers above route arrows for one to three flights; longer journeys use a compact summary.
+- Save individual flights or trips with up to eight connected legs, using only flight numbers and departure dates. `LX1055` and `LX 1055` resolve to the same canonical identifier; requests and saved flight labels use `LX1055`. Airports come from matching provider data. The overview displays flight numbers above route arrows for one to three flights; longer journeys use a compact summary.
 - See flight status, local times, aircraft details and a separate incoming-aircraft card per remaining leg. Unknown provider information stays unknown.
 - Refresh when information is over 15 minutes old while the app is visible, or pull to refresh, subject to the safety cache, rate limits and spending gate.
 - Keep manually entered flight history permanently. Provider details expire after 29 days. Device caches are partitioned by server and user and cleared on sign-out.
@@ -70,9 +70,9 @@ Nonempty legacy shared databases fail closed rather than being assigned to the f
 
 ## Run the app
 
-1. Open `app/FlightDeck.xcodeproj` in Xcode and run on an iPhone simulator to explore the local demo.
+1. Open `app/FlightDeck.xcodeproj` in Xcode and run on an iPhone simulator. The start page offers server connection and a secondary **Explore the demo** option.
 2. For a physical phone, choose your authorized development team. The project does not provision a developer account or configure push.
-3. In **Settings**, enter your HTTPS server URL and connect.
+3. On the start page, enter your HTTPS server URL and connect. From demo **Settings**, **Connect to a server** returns to this page.
 4. Register a server account or sign in. New live accounts are then prompted to add an AeroAPI key, with links and instructions.
 5. Add your flights and check **Usage** for that account's budget and history.
 
@@ -80,11 +80,11 @@ For a private CA/self-signed setup, the hostname-matching server certificate mus
 
 ## Flight data and history
 
-The connector uses the recent-flight `/flights/{ident}` endpoint and bounded single-page responses. It deliberately does not buy schedule or historical endpoints. Trips can be saved well ahead of departure or long ago, but live details are available only close to departure. Specify airports to disambiguate occurrences. Dates are departure-airport local dates; times are displayed in each airport's timezone.
+The connector uses the recent-flight `/flights/{ident}` endpoint and bounded single-page responses. It deliberately does not buy schedule or historical endpoints. Trips can be saved well ahead of departure or long ago, but live details and derived airports are available only close to departure. The app asks for a flight number and departure date, and derives the route from a unique matching occurrence. Ambiguous results stay unresolved instead of guessing. Dates are departure-airport local dates; times are displayed in each airport's timezone. Optional airport filters remain supported by the API for older clients.
 
 Incoming links use FlightAware's `inbound_fa_flight_id` and are re-evaluated when aircraft assignments change. The app does not yet predict missed connections. A provider that has not identified an incoming aircraft cannot supply that link.
 
-User-entered itineraries remain permanently. Raw provider data and normalized live details expire after 29 days. Enter airport codes to preserve routes in history after provider details expire. Completed flights are not continually refreshed. This journal contains flights users add; it does not import an airline account's complete history.
+User-entered flight numbers and dates remain permanently. Raw provider data and normalized live details, including derived airports, expire after 29 days; the new flight form does not ask users to enter routes manually. Legacy user-entered airport codes remain in existing itineraries. Completed flights are not continually refreshed. This journal contains flights users add; it does not import an airline account's complete history.
 
 ## API
 

@@ -35,9 +35,10 @@ class LegInput(BaseModel):
     origin_iata: str | None = None
     destination_iata: str | None = None
 
-    @field_validator('flight_number')
+    @field_validator('flight_number',mode='before')
     @classmethod
     def flight(cls, value):
+        if not isinstance(value,str): raise ValueError('Use a flight number such as LX1055 or DL47')
         value = re.sub(r'\s+', '', value).upper()
         if not re.fullmatch(r'[A-Z0-9]{2,3}[0-9]{1,4}[A-Z]?', value):
             raise ValueError('Use a flight number such as LX1055 or DL47')

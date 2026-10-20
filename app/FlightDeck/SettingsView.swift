@@ -2,15 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(FlightStore.self) private var store
-    @State private var address = ""
-    @State private var connecting = false
     @State private var busy = false
-    @State private var connectionError: String?
-    @State private var server: ServerInfo?
-    @State private var showingLogin = false
     @State private var showingKey = false
     @State private var removingKey = false
-    @FocusState private var focused: Bool
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -59,33 +53,10 @@ struct SettingsView: View {
                             Button("Return to my account") { Task { await store.resumeSession() } }
                                 .font(.subheadline).foregroundStyle(Deck.ink)
                         }
-                        SectionTitle(title:"Your server")
-                        VStack(alignment:.leading,spacing:18) {
-                            Text("SERVER ADDRESS").eyebrow().foregroundStyle(Deck.muted)
-                            TextField("https://flights.example.com",text:$address).textContentType(.URL).keyboardType(.URL)
-                                .focused($focused).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("serverAddress")
-                            Button {
-                                focused = false;connecting = true;connectionError = nil
-                                Task {
-                                    do {
-                                        let api = try APIClient(address:address)
-                                        let info = try await api.send("/v1/server",as:ServerInfo.self)
-                                        guard info.service == "FlightDeck",info.protocolVersion == 2 else { throw ConnectionError.response("This server needs the account-enabled FlightDeck update.") }
-                                        server = info;showingLogin = true
-                                    } catch { connectionError = error.localizedDescription }
-                                    connecting = false
-                                }
-                            } label: {
-                                HStack {
-                                    if connecting { ProgressView().tint(.white) }
-                                    Text(connecting ? "Connecting…":"Connect to server").fontWeight(.semibold)
-                                    if !connecting { Image(systemName:"arrow.right") }
-                                }.frame(maxWidth:.infinity).padding(15).background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
-                            }.disabled(connecting || address.isEmpty).accessibilityIdentifier("connectServer")
-                            if let connectionError { Text(connectionError).font(.footnote).foregroundStyle(Deck.orange) }
-                            Text("Connect to your own server or one you trust, then sign in or create an account. A private HTTPS certificate must be trusted on your phone.")
-                                .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
-                        }.deckCard()
+                        Button { store.leaveDemo() } label: {
+                            Label("Connect to a server",systemImage:"arrow.right").font(.subheadline.weight(.semibold))
+                                .frame(maxWidth:.infinity).padding(16).background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
+                        }.accessibilityIdentifier("leaveDemo")
                     }
                     if let error = store.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                     SectionTitle(title:"About FlightDeck")
@@ -102,9 +73,6 @@ struct SettingsView: View {
                     Text("FLIGHTDECK  /  0.2").eyebrow().foregroundStyle(Deck.muted.opacity(0.5)).frame(maxWidth:.infinity).padding(.bottom,16)
                 }.padding(24)
             }.background(Deck.paper).foregroundStyle(Deck.ink).toolbar(.hidden,for:.navigationBar).scrollDismissesKeyboard(.interactively)
-                .toolbar { ToolbarItemGroup(placement:.keyboard) { Spacer();Button("Done") { focused = false } } }
-                .onAppear { address = store.address }
-                .sheet(isPresented:$showingLogin) { if let server { AccountAccessView(address:address,server:server) } }
                 .sheet(isPresented:$showingKey) { APIKeySetupView() }
                 .confirmationDialog("Remove the saved API key? Live lookups will pause. Your flights and usage history will remain.",isPresented:$removingKey,titleVisibility:.visible) {
                     Button("Remove API key",role:.destructive) { Task { await store.removeAPIKey() } }

@@ -45,7 +45,7 @@ def match_flight(rows, leg):
         matches=[r for r in matches if (r.get('destination') or {}).get('code_iata')==leg['destination_iata']]
     # A diverted continuation can reuse a provider ID. Never pick an arbitrary occurrence.
     if len(matches)>1:
-        raise ConnectorError('More than one flight matches. Specify departure and arrival airports.', 'ambiguous_flight')
+        raise ConnectorError('More than one occurrence matches this flight number and departure date. The route could not be identified safely.', 'ambiguous_flight')
     return matches[0] if matches else None
 
 
@@ -89,7 +89,7 @@ class FlightService:
         rows=await self.connector.flights(leg['flight_number'],start=start.isoformat(),end=end.isoformat(),force=force)
         raw=match_flight(rows,leg)
         if not raw:
-            raise ConnectorError('No matching occurrence returned on the first API page. Check flight date and airport; no additional pages were purchased.', 'flight_not_found')
+            raise ConnectorError('No matching occurrence returned on the first API page. Check the flight number and departure date; no additional pages were purchased.', 'flight_not_found')
         current=normalize(raw)
         # Keep partial current-flight updates if the inbound call exhausts the budget or fails.
         result={'fetched_at':raw.get('_flightdeck_fetched_at',now.isoformat()),'flight':current,'inbound':None,'inbound_note':None}

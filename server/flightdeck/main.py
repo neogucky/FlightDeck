@@ -76,7 +76,7 @@ def create_app(settings=None, *, transport=None, clock=None):
         elif request.url.path == '/v1/account/api-key':
             detail = 'Paste your AeroAPI key without spaces or line breaks (10–512 characters).'
         else:
-            detail = 'Check the flight numbers, dates and airport codes. Connected flights must share an airport and be in date order.'
+            detail = 'Check the flight numbers and departure dates. Connected flights must be different and in date order.'
         return JSONResponse({'detail':detail},status_code=422)
 
     async def authenticated(authorization: str | None = Header(default=None)):

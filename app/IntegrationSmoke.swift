@@ -13,10 +13,12 @@ import Foundation
         precondition(original.account?.id == auth.account.id && original.account?.hasApiKey == false)
         let configured = try await api.request("/v1/account/api-key",method:"PUT",body:JSONCoding.encoder.encode(KeyInput(apiKey:"flightdeck-test-native-key-"+username)))
         precondition(configured.account?.hasApiKey == true)
-        let legs = [NewLeg(flightNumber:"LH2055",originIata:"HAM",destinationIata:"MUC"),NewLeg(flightNumber:"LX1107",originIata:"MUC",destinationIata:"ZRH")]
+        let legs = [NewLeg(flightNumber:" lh 2055 "),NewLeg(flightNumber:"LX 1107")]
         let state = try await api.request("/v1/trips",method:"POST",body:JSONCoding.encoder.encode(NewTrip(title:"Native API check",legs:legs)))
         guard let trip = state.trips.first else { fatalError("Trip missing") }
         precondition(trip.legs.count == 2 && trip.legs[1].origin == "MUC")
+        precondition(trip.legs[0].flightNumber == "LH2055" && trip.legs[1].flightNumber == "LX1107")
+        precondition(trip.legs[0].origin == "HAM" && trip.legs[1].destination == "ZRH")
         precondition(trip.legs[0].snapshot?.flight.aircraftName == "Airbus A320neo")
         let report = try await api.send("/v1/usage",as:UsageReport.self)
         precondition(report.usage.reservedUsd == 0.02 && report.history.first?.requestCount == 2)

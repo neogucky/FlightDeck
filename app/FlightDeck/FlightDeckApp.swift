@@ -6,11 +6,17 @@ struct FlightDeckApp: App {
     @Environment(\.scenePhase) private var phase
     var body: some Scene {
         WindowGroup {
-            TabView {
-                DashboardView().tabItem { Label("Trips",systemImage:"airplane.departure") }
-                HistoryView().tabItem { Label("History",systemImage:"clock.arrow.circlepath") }
-                UsageView().tabItem { Label("Usage",systemImage:"chart.bar.xaxis") }
-                SettingsView().tabItem { Label("Settings",systemImage:"slider.horizontal.3") }
+            Group {
+                if store.hasEnteredApp {
+                    TabView {
+                        DashboardView().tabItem { Label("Trips",systemImage:"airplane.departure") }
+                        HistoryView().tabItem { Label("History",systemImage:"clock.arrow.circlepath") }
+                        UsageView().tabItem { Label("Usage",systemImage:"chart.bar.xaxis") }
+                        SettingsView().tabItem { Label("Settings",systemImage:"slider.horizontal.3") }
+                    }
+                } else {
+                    StartView()
+                }
             }.tint(Deck.ink).environment(store).preferredColorScheme(.light)
                 .onChange(of:phase) { _,value in if value == .active { Task { await store.refreshIfNeeded() } } }
                 .task {

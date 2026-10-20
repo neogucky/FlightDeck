@@ -86,6 +86,34 @@ def test_matching_uses_local_departure_date_and_never_guesses():
     with pytest.raises(ConnectorError,match='More than one'):match_flight([raw(),raw()],leg)
 
 
+@pytest.mark.parametrize('number',['LX1055','LX 1055',' lx\t1055\n','LX\u00a01055','  LX   1055  '])
+def test_flight_number_normalization_precedes_validation_and_duplicate_detection(number):
+    leg={'flight_number':number,'departure_date':'2026-10-19'}
+    trip=TripInput.model_validate({'legs':[leg]})
+    assert trip.legs[0].flight_number=='LX1055'
+    assert trip.legs[0].origin_iata is None
+    with pytest.raises(ValidationError):
+        TripInput.model_validate({'legs':[leg,dict(leg,flight_number='LX1055')]})
+
+
+def test_lookup_derives_route_from_number_and_date_without_airport_input(tmp_path):
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='live',api_key='not-a-real-key')
+    db=Database(settings.database)
+    class Stub:
+        calls=[]
+        async def flights(self,ident,**kwargs):
+            self.calls.append(ident)
+            return [dict(raw(),inbound_fa_flight_id=None)]
+    stub=Stub();service=FlightService(db,settings,stub,lambda:NOW)
+    trip=service.create(TripInput.model_validate({'legs':[{'flight_number':' lh 2055 ','departure_date':'2026-10-19'}]}))
+    asyncio.run(service.refresh(trip['id']))
+    leg=service.list()[0]['legs'][0]
+    assert stub.calls==['LH2055']
+    assert leg['flight_number']=='LH2055'
+    assert leg['snapshot']['flight']['origin']['iata']=='HAM'
+    assert leg['snapshot']['flight']['destination']['iata']=='MUC'
+
+
 def test_incoming_aircraft_swap_invalidates_previous_link_and_cache_ttl(tmp_path):
     settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='live',api_key='not-a-real-key')
     db=Database(settings.database)

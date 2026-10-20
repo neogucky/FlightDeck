@@ -6,6 +6,13 @@ enum TripPresentationTests {
         precondition(condition(),message)
     }
     static func main() {
+        for number in ["LX1055", "LX 1055", " lx\t1055\n", "LX\u{00A0}1055"] {
+            expect(number.canonicalFlightNumber == "LX1055","Whitespace must not change the flight identifier")
+            let encoded = try! JSONCoding.encoder.encode(NewLeg(flightNumber:number))
+            let json = try! JSONSerialization.jsonObject(with:encoded) as! [String:Any]
+            expect(json["flight_number"] as? String == "LX1055","The wire identifier must be canonical")
+            expect(json["origin_iata"] == nil && json["destination_iata"] == nil,"Airports come from the lookup")
+        }
         let baseline = DemoData.trips()[0]
         expect(baseline.status == JourneyStatus(label:"All on time"),"Both legs must be on time")
 

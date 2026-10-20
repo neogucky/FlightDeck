@@ -13,7 +13,8 @@ final class FlightStore {
     var error: String?
     var lastSynced: Date?
     var serverMode = "live"
-    var demo = true
+    var demo = false
+    var hasEnteredApp = false
     var address = ""
     private var session: SavedSession?
     private let defaults = UserDefaults.standard
@@ -25,7 +26,7 @@ final class FlightStore {
     var history: [Trip] { trips.filter(\.isPast).sorted { $0.departure > $1.departure } }
     var isDemo: Bool { demo || serverMode == "demo" }
     var isSignedIn: Bool { !demo && session != nil && account != nil }
-    var canResumeSession: Bool { demo && session != nil }
+    var canResumeSession: Bool { !isSignedIn && session != nil }
     var needsAPIKey: Bool { isSignedIn && serverMode == "live" && account?.hasApiKey == false }
 
     init() {
@@ -33,16 +34,20 @@ final class FlightStore {
         session = TokenVault.readSession()
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--uitesting") {
+            demo = true;hasEnteredApp = true;session = nil
             let count = args.first(where: { $0.hasPrefix("--uitesting-flight-count=") })
                 .flatMap { Int($0.replacingOccurrences(of:"--uitesting-flight-count=",with:"")) } ?? 2
             trips = DemoData.trips(nextTripLegCount:count)
         } else if args.contains("--uitesting-preserve") {
+            demo = true;hasEnteredApp = true;session = nil
             trips = loadCache(demo:true)?.trips ?? []
+        } else if args.contains("--uitesting-start") {
+            session = nil
         } else if let saved = session, (FlightTime.date(saved.expiresAt) ?? .distantPast) > Date() {
-            demo = false;address = saved.address;account = saved.account
+            hasEnteredApp = true;address = saved.address;account = saved.account
             if let cached = loadCache(demo:false),cached.account?.id == saved.account.id { apply(cached) }
         } else {
-            trips = loadCache(demo:true)?.trips ?? DemoData.trips()
+            session = nil
         }
         purgeOldSnapshots()
     }
@@ -129,16 +134,22 @@ final class FlightStore {
         catch { self.error = error.localizedDescription;return }
         if let url = cacheURL(demo:false) { try? FileManager.default.removeItem(at:url) }
         session = nil;account = nil;usage = nil;usageHistory = [];issues = [];lastSynced = nil;isRefreshing = false
-        demo = true;serverMode = "demo";trips = loadCache(demo:true)?.trips ?? DemoData.trips()
+        demo = false;hasEnteredApp = false;serverMode = "live";trips = []
         error = remoteFailed ? "Signed out on this device. The server could not be reached to revoke the session; sign in and choose ‘Sign out all devices’ when connected.":nil
     }
     func useDemo() {
-        demo = true;account = nil;serverMode = "demo";isRefreshing = false;lastSynced = nil
+        demo = true;hasEnteredApp = true;account = nil;serverMode = "demo";isRefreshing = false;lastSynced = nil
         trips = loadCache(demo:true)?.trips ?? DemoData.trips();usage = nil;usageHistory = [];error = nil;issues = [];persist()
     }
+    func leaveDemo() {
+        demo = false;hasEnteredApp = false;account = nil;serverMode = "live";isRefreshing = false;lastSynced = nil
+        trips = [];usage = nil;usageHistory = [];error = nil;issues = []
+    }
+    // Keep the connection page mounted until its sign-in/key-setup sheet is dismissed.
+    func enterAccount() { if isSignedIn { hasEnteredApp = true } }
     func resumeSession() async {
         guard let saved = session else { return }
-        demo = false;address = saved.address;account = saved.account;usageHistory = []
+        demo = false;hasEnteredApp = true;address = saved.address;account = saved.account;usageHistory = []
         trips = [];usage = nil;issues = [];lastSynced = nil
         if let cached = loadCache(demo:false),cached.account?.id == saved.account.id { apply(cached) }
         await refresh()
@@ -147,12 +158,13 @@ final class FlightStore {
         guard active(token) else { return }
         if case ConnectionError.unauthorized = error {
             if let url = cacheURL(demo:false) { try? FileManager.default.removeItem(at:url) }
-            try? TokenVault.clear();session = nil;account = nil;trips = [];usage = nil;usageHistory = [];issues = [];isRefreshing = false
+            try? TokenVault.clear();session = nil;account = nil;trips = [];usage = nil;usageHistory = [];issues = [];isRefreshing = false;hasEnteredApp = false
         }
         self.error = error.localizedDescription
     }
     func refresh(force: Bool = false, tripID: String? = nil) async {
         guard !isRefreshing else { return }
+        guard hasEnteredApp else { return }
         purgeOldSnapshots()
         if demo {
             isRefreshing = true
@@ -187,8 +199,8 @@ final class FlightStore {
     func add(_ payload: NewTrip) async throws {
         if demo {
             let legs = payload.legs.map { l in
-                FlightLeg(id:UUID().uuidString,flightNumber:l.flightNumber.uppercased().replacingOccurrences(of:" ",with:""),
-                    departureDate:l.departureDate,originIata:l.originIata?.uppercased().nonempty,destinationIata:l.destinationIata?.uppercased().nonempty,snapshot:nil)
+                FlightLeg(id:UUID().uuidString,flightNumber:l.flightNumber.canonicalFlightNumber,
+                    departureDate:l.departureDate,originIata:nil,destinationIata:nil,snapshot:nil)
             }
             trips.append(Trip(id:UUID().uuidString,title:payload.title,createdAt:FlightTime.iso(Date()),legs:legs));persist();return
         }
