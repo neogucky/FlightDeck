@@ -3,88 +3,112 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(FlightStore.self) private var store
     @State private var address = ""
-    @State private var token = ""
     @State private var connecting = false
+    @State private var busy = false
     @State private var connectionError: String?
-    @State private var connected = false
-    @FocusState private var focusedField: String?
+    @State private var server: ServerInfo?
+    @State private var showingLogin = false
+    @State private var showingKey = false
+    @State private var removingKey = false
+    @FocusState private var focused: Bool
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment:.leading,spacing:24) {
                     Text("MAKE IT YOURS").eyebrow().foregroundStyle(Deck.muted)
                     Text("Settings").font(.system(size:34,weight:.bold)).tracking(-1.2)
-                    HStack(spacing:15) {
-                        Image(systemName:store.isDemo ? "sparkles":"checkmark.shield").font(.system(size:25)).foregroundStyle(Deck.orange)
-                        VStack(alignment:.leading,spacing:5) {
-                            Text(store.isDemo ? "Exploring the demo":"Connected to your server").font(.system(size:16,weight:.semibold))
-                            Text(store.isDemo ? "Sample flights. No live data or API charges.":store.address).font(.footnote).foregroundStyle(Deck.muted)
+                    if store.isSignedIn,let account = store.account {
+                        HStack(spacing:15) {
+                            Image(systemName:"person.crop.circle.badge.checkmark").font(.system(size:30)).foregroundStyle(Deck.green)
+                            VStack(alignment:.leading,spacing:5) {
+                                Text(account.username).font(.system(size:20,weight:.bold)).accessibilityIdentifier("signedInUsername")
+                                Text(store.address).font(.footnote).foregroundStyle(Deck.muted)
+                                Text("Signed in on this device").font(.system(size:11)).foregroundStyle(Deck.green)
+                            }
+                            Spacer(minLength:0)
+                        }.deckCard()
+                        SectionTitle(title:"Flight data")
+                        VStack(alignment:.leading,spacing:16) {
+                            Label(account.hasApiKey ? "AeroAPI key connected":"Add your AeroAPI key",systemImage:account.hasApiKey ? "lock.shield.fill":"key.horizontal")
+                                .font(.system(size:16,weight:.semibold)).accessibilityIdentifier("apiKeyStatus")
+                            Text(account.hasApiKey ? "Stored encrypted on your server. The saved key cannot be viewed in the app.":"Connect your own FlightAware account to start tracking live flight information.")
+                                .font(.footnote).foregroundStyle(Deck.muted)
+                            if store.serverMode == "live" {
+                                Button(account.hasApiKey ? "Replace API key":"Set up flight data") { showingKey = true }
+                                    .font(.system(size:14,weight:.semibold)).foregroundStyle(Deck.ink).accessibilityIdentifier("configureAPIKey")
+                            } else { Text("This server is running in demo mode.").font(.footnote).foregroundStyle(Deck.muted) }
+                        }.deckCard()
+                        VStack(spacing:16) {
+                            Button("Sign out") { busy = true;Task { await store.logout();busy = false } }
+                                .accessibilityIdentifier("signOut")
+                            Button("Sign out all devices") { busy = true;Task { await store.logout(allDevices:true);busy = false } }
+                            if account.hasApiKey {
+                                Button("Remove saved API key",role:.destructive) { removingKey = true }
+                            }
+                        }.font(.subheadline).frame(maxWidth:.infinity).foregroundStyle(Deck.muted).disabled(busy)
+                    } else {
+                        HStack(spacing:15) {
+                            Image(systemName:"sparkles").font(.system(size:25)).foregroundStyle(Deck.orange)
+                            VStack(alignment:.leading,spacing:5) {
+                                Text(store.demo ? "Exploring the demo":"Sign in to continue").font(.system(size:16,weight:.semibold))
+                                Text("Connect your server to keep your own flight journal.").font(.footnote).foregroundStyle(Deck.muted)
+                            }
+                            Spacer()
+                        }.deckCard()
+                        if store.canResumeSession {
+                            Button("Return to my account") { Task { await store.resumeSession() } }
+                                .font(.subheadline).foregroundStyle(Deck.ink)
                         }
-                        Spacer()
-                    }.deckCard()
-                    SectionTitle(title:"Your server")
-                    VStack(alignment:.leading,spacing:18) {
-                        VStack(alignment:.leading,spacing:8) {
+                        SectionTitle(title:"Your server")
+                        VStack(alignment:.leading,spacing:18) {
                             Text("SERVER ADDRESS").eyebrow().foregroundStyle(Deck.muted)
                             TextField("https://flights.example.com",text:$address).textContentType(.URL).keyboardType(.URL)
-                                .focused($focusedField,equals:"address")
-                                .textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("serverAddress")
-                        }
-                        Divider()
-                        VStack(alignment:.leading,spacing:8) {
-                            Text("CONNECTION TOKEN").eyebrow().foregroundStyle(Deck.muted)
-                            SecureField("From your server configuration",text:$token).textInputAutocapitalization(.never).autocorrectionDisabled()
-                                .focused($focusedField,equals:"token")
-                                .accessibilityIdentifier("connectionToken")
-                        }
-                        Button {
-                            connecting = true; connectionError = nil; connected = false
-                            Task {
-                                do { try await store.connect(address:address,token:token); connected = true; token = "" }
-                                catch { connectionError = error.localizedDescription }
-                                connecting = false
-                            }
-                        } label: {
-                            HStack {
-                                if connecting { ProgressView().tint(.white) }
-                                Text(connecting ? "Connecting…":"Connect & load flights").fontWeight(.semibold)
-                            }.frame(maxWidth:.infinity).padding(15).background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
-                        }.disabled(connecting || address.isEmpty || token.isEmpty)
-                        if let connectionError { Text(connectionError).font(.footnote).foregroundStyle(Deck.orange) }
-                        if connected { Label("Connected. Your saved trips are ready.",systemImage:"checkmark.circle.fill").font(.footnote).foregroundStyle(Deck.green) }
-                        Text("The token is kept in your iPhone’s Keychain. Your FlightAware API key stays on your server. A private server certificate must be trusted on your phone.")
-                            .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
-                    }.deckCard()
-                    if let usage = store.usage {
-                        SectionTitle(title:"Data budget",detail:usage.month)
-                        VStack(alignment:.leading,spacing:15) {
-                            HStack(alignment:.firstTextBaseline) {
-                                Text(usage.conservativeUsedUsd,format:.currency(code:"USD")).font(.system(size:29,weight:.semibold,design:.rounded))
-                                Text("of \(usage.limitUsd.formatted(.currency(code:"USD"))) safety budget").font(.footnote).foregroundStyle(Deck.muted)
-                            }
-                            ProgressView(value:min(usage.conservativeUsedUsd,usage.limitUsd),total:usage.limitUsd).tint(usage.blocked ? Deck.orange:Deck.green)
-                            Text(usage.blocked ? "Live lookups are paused. Your saved trips remain available.":"Conservative accounting reserves extra for each lookup and keeps $0.50 below the $5 ceiling.")
-                                .font(.footnote).foregroundStyle(Deck.muted)
-                            Text("\(usage.requestCount) reserved requests · Price review due \(usage.pricingValidUntil)")
-                                .font(.system(size:10,design:.monospaced)).foregroundStyle(Deck.muted)
+                                .focused($focused).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("serverAddress")
+                            Button {
+                                focused = false;connecting = true;connectionError = nil
+                                Task {
+                                    do {
+                                        let api = try APIClient(address:address)
+                                        let info = try await api.send("/v1/server",as:ServerInfo.self)
+                                        guard info.service == "FlightDeck",info.protocolVersion == 2 else { throw ConnectionError.response("This server needs the account-enabled FlightDeck update.") }
+                                        server = info;showingLogin = true
+                                    } catch { connectionError = error.localizedDescription }
+                                    connecting = false
+                                }
+                            } label: {
+                                HStack {
+                                    if connecting { ProgressView().tint(.white) }
+                                    Text(connecting ? "Connecting…":"Connect to server").fontWeight(.semibold)
+                                    if !connecting { Image(systemName:"arrow.right") }
+                                }.frame(maxWidth:.infinity).padding(15).background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
+                            }.disabled(connecting || address.isEmpty).accessibilityIdentifier("connectServer")
+                            if let connectionError { Text(connectionError).font(.footnote).foregroundStyle(Deck.orange) }
+                            Text("Connect to your own server or one you trust, then sign in or create an account. A private HTTPS certificate must be trusted on your phone.")
+                                .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
                         }.deckCard()
                     }
+                    if let error = store.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                     SectionTitle(title:"About FlightDeck")
                     VStack(alignment:.leading,spacing:14) {
+                        Label("Your session stays in this iPhone’s Keychain",systemImage:"lock.shield")
                         Label("Updates when flight data is over 15 minutes old",systemImage:"arrow.clockwise")
                         Label("Saved trips available offline",systemImage:"icloud.and.arrow.down")
-                        Label("Flight details powered by FlightAware",systemImage:"airplane")
                         Text("Contains AeroAPI data © FlightAware LLC \(Calendar.current.component(.year,from:Date()).formatted(.number.grouping(.never))).")
                             .font(.system(size:10)).foregroundStyle(Deck.muted)
                     }.font(.system(size:12)).deckCard()
                     if !store.demo {
                         Button("Explore demo flights") { store.useDemo() }.font(.subheadline).foregroundStyle(Deck.muted).frame(maxWidth:.infinity)
                     }
-                    Text("FLIGHTDECK  /  0.1").eyebrow().foregroundStyle(Deck.muted.opacity(0.5)).frame(maxWidth:.infinity).padding(.bottom,16)
+                    Text("FLIGHTDECK  /  0.2").eyebrow().foregroundStyle(Deck.muted.opacity(0.5)).frame(maxWidth:.infinity).padding(.bottom,16)
                 }.padding(24)
             }.background(Deck.paper).foregroundStyle(Deck.ink).toolbar(.hidden,for:.navigationBar).scrollDismissesKeyboard(.interactively)
-                .toolbar { ToolbarItemGroup(placement:.keyboard) { Spacer(); Button("Done") { focusedField = nil } } }
-                .onAppear { address = store.address; token = TokenVault.read() }
+                .toolbar { ToolbarItemGroup(placement:.keyboard) { Spacer();Button("Done") { focused = false } } }
+                .onAppear { address = store.address }
+                .sheet(isPresented:$showingLogin) { if let server { AccountAccessView(address:address,server:server) } }
+                .sheet(isPresented:$showingKey) { APIKeySetupView() }
+                .confirmationDialog("Remove the saved API key? Live lookups will pause. Your flights and usage history will remain.",isPresented:$removingKey,titleVisibility:.visible) {
+                    Button("Remove API key",role:.destructive) { Task { await store.removeAPIKey() } }
+                }
         }
     }
 }

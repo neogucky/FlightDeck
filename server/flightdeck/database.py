@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -11,6 +12,13 @@ def utcnow():
 class Database:
     def __init__(self, path: str):
         self.path = path
+        # SQLite WAL files inherit the main database's private file mode.
+        try:
+            fd = os.open(path,os.O_WRONLY | os.O_CREAT | os.O_EXCL,0o600)
+            os.close(fd)
+        except FileExistsError:
+            pass
+        os.chmod(path,0o600)
         with self.connect() as db:
             db.executescript("""
                 PRAGMA journal_mode=WAL;
@@ -25,6 +33,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS account_usage(
                     month TEXT PRIMARY KEY, high_water_micro INTEGER NOT NULL, checked_at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS refresh_attempts(leg_id TEXT PRIMARY KEY, attempted_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS provider_attempts(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL);
             """)
 
     @contextmanager
@@ -32,6 +41,7 @@ class Database:
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout=30000")
+        db.execute("PRAGMA foreign_keys=ON")
         try:
             yield db
         finally:

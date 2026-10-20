@@ -76,6 +76,8 @@ class FlightService:
         if day<now.date()-timedelta(days=9) or day>now.date()+timedelta(days=2):
             # Personal-tier recent-flight endpoint only; never silently buy history/schedule endpoints.
             raise ConnectorError('Saved. Live status is available close to departure; old flights remain in your history.', 'outside_live_window')
+        if self.settings.mode == 'live' and self.connector is None:
+            raise ConnectorError('Add your AeroAPI key in Settings to enable live flight information.','api_key_required')
         if not self.db.claim_refresh(leg['id'],now):
             return
         if self.settings.mode=='demo':

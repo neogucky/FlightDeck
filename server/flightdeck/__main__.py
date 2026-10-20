@@ -1,32 +1,50 @@
 import argparse
 from pathlib import Path
 import getpass
-import secrets
 
 
 def main():
-    parser=argparse.ArgumentParser(description='FlightDeck server')
-    parser.add_argument('command',choices=['configure','run'],nargs='?',default='run')
+    parser=argparse.ArgumentParser(description='FlightDeck account server')
+    parser.add_argument('command',choices=['configure','run','reset-password'],nargs='?',default='run')
     parser.add_argument('--host',default='127.0.0.1')
     parser.add_argument('--port',type=int,default=8787)
+    parser.add_argument('--username')
     args=parser.parse_args()
     if args.command=='configure':
         file=Path('.env')
-        if file.exists():
-            raise SystemExit('.env already exists; edit it directly to avoid replacing your credentials.')
-        mode=input('Mode [demo/live] (demo): ').strip() or 'demo'
+        if file.exists(): raise SystemExit('.env already exists; edit it directly to preserve your server configuration.')
+        mode=input('Mode [live/demo] (live): ').strip() or 'live'
         if mode not in ['demo','live']: raise SystemExit('Choose demo or live.')
-        api_key=getpass.getpass('FlightAware API key: ') if mode=='live' else ''
-        token=secrets.token_urlsafe(32)
-        file.write_text(f'FLIGHTDECK_MODE={mode}\nFLIGHTDECK_ACCESS_TOKEN={token}\nFLIGHTAWARE_API_KEY={api_key}\nFLIGHTDECK_DATABASE=data/{mode}.sqlite3\nFLIGHTDECK_BUDGET_USD=4.50\nFLIGHTDECK_PRICING_VALID_UNTIL=2026-11-18\n')
+        file.write_text(f'FLIGHTDECK_MODE={mode}\nFLIGHTDECK_DATABASE=data/{mode}-accounts.sqlite3\nFLIGHTDECK_ENCRYPTION_KEY_FILE=secrets/master.key\nFLIGHTDECK_REGISTRATION_OPEN=true\nFLIGHTDECK_SESSION_DAYS=90\nFLIGHTDECK_BUDGET_USD=4.50\nFLIGHTDECK_PRICING_VALID_UNTIL=2026-11-18\n')
         try: file.chmod(0o600)
         except OSError: pass
-        print('Configuration written to .env. Copy FLIGHTDECK_ACCESS_TOKEN into the app’s connection settings.')
+        from dotenv import load_dotenv
+        load_dotenv()
+        from .accounts import Accounts
+        from .config import Settings
+        Accounts(Settings.from_env())
+        print('Server configured. Connect from the app and create an account. Each user adds their own API key in the app.')
+        print('Back up secrets/master.key separately and securely; losing it makes saved API keys unreadable.')
         return
     from dotenv import load_dotenv
     load_dotenv()
+    if args.command=='reset-password':
+        from .accounts import Accounts
+        from .config import Settings
+        if not args.username: raise SystemExit('Supply --username for the account to recover.')
+        accounts=Accounts(Settings.from_env())
+        password=getpass.getpass('New password (12–128 characters): ')
+        if not 12 <= len(password) <= 128: raise SystemExit('Password length must be 12–128 characters.')
+        if password != getpass.getpass('Confirm new password: '): raise SystemExit('Passwords differ.')
+        with accounts.db.transaction() as con:
+            row=con.execute('SELECT id FROM users WHERE username=?',(args.username.lower().strip(),)).fetchone()
+            if not row: raise SystemExit('Account not found.')
+            con.execute('UPDATE users SET password_hash=? WHERE id=?',(accounts.hasher.hash(password),row[0]))
+            con.execute('DELETE FROM sessions WHERE user_id=?',(row[0],))
+        print('Password updated and all sessions revoked.')
+        return
     import uvicorn
-    uvicorn.run('flightdeck.main:create_app',factory=True,host=args.host,port=args.port,workers=1,access_log=False)
+    uvicorn.run('flightdeck.main:create_app',factory=True,host=args.host,port=args.port,workers=1,access_log=False,proxy_headers=False)
 
 
 if __name__=='__main__': main()

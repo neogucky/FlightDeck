@@ -163,10 +163,55 @@ struct RefreshIssue: Codable, Identifiable {
 
 struct ServerState: Codable {
     var mode: String
+    var account: UserAccount? = nil
     var trips: [Trip]
     var usage: Usage?
     var issues: [RefreshIssue]
 }
+
+struct UserAccount: Codable, Equatable {
+    var id: String
+    var username: String
+    var hasApiKey: Bool
+    var apiKeyUpdatedAt: String?
+}
+
+struct ServerInfo: Decodable {
+    var service: String
+    var protocolVersion: Int
+    var registrationOpen: Bool
+    var mode: String
+}
+
+struct AuthSession: Decodable {
+    var sessionToken: String
+    var expiresAt: String
+    var account: UserAccount
+}
+
+struct SavedSession: Codable {
+    var address: String
+    var token: String
+    var expiresAt: String
+    var account: UserAccount
+}
+
+struct UsagePeriod: Decodable, Identifiable {
+    var month: String
+    var reservedUsd: Double
+    var providerReportedUsd: Double
+    var conservativeUsedUsd: Double
+    var requestCount: Int
+    var id: String { month }
+}
+
+struct UsageReport: Decodable {
+    var usage: Usage
+    var history: [UsagePeriod]
+}
+
+struct LoginInput: Encodable { var username: String; var password: String }
+struct KeyInput: Encodable { var apiKey: String }
 
 struct NewLeg: Codable, Identifiable {
     var id = UUID()

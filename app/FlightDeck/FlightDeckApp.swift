@@ -9,6 +9,7 @@ struct FlightDeckApp: App {
             TabView {
                 DashboardView().tabItem { Label("Trips",systemImage:"airplane.departure") }
                 HistoryView().tabItem { Label("History",systemImage:"clock.arrow.circlepath") }
+                UsageView().tabItem { Label("Usage",systemImage:"chart.bar.xaxis") }
                 SettingsView().tabItem { Label("Settings",systemImage:"slider.horizontal.3") }
             }.tint(Deck.ink).environment(store).preferredColorScheme(.light)
                 .onChange(of:phase) { _,value in if value == .active { Task { await store.refreshIfNeeded() } } }

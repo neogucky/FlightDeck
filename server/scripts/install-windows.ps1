@@ -60,6 +60,16 @@ foreach ($dir in @($DataDir,$LogsDir)) {
     Assert-Exit 'Granting service data access'
 }
 $Principal = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+# Account data and provider caches must not inherit access for other local users.
+& icacls $DataDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-19:(OI)(CI)(M)' "${Principal}:(OI)(CI)(F)" /T /C | Out-Null
+Assert-Exit 'Protecting account data'
+$KeyFile = & $Python -c "from dotenv import load_dotenv; load_dotenv(); from flightdeck.config import Settings; from flightdeck.accounts import Accounts; s=Settings.from_env(); Accounts(s); print(s.key_file.resolve())"
+Assert-Exit 'Preparing account encryption'
+$KeyFolder = Split-Path $KeyFile
+& icacls $KeyFolder /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-19:(OI)(CI)(RX)' "${Principal}:(OI)(CI)(F)" /T /C | Out-Null
+Assert-Exit 'Protecting the encryption key folder'
+& icacls $KeyFile /inheritance:r /grant:r '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' '*S-1-5-19:(R)' "${Principal}:(F)" | Out-Null
+Assert-Exit 'Protecting the encryption key'
 & icacls (Join-Path $InstallRoot '.env') /inheritance:r /grant:r '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' '*S-1-5-19:(R)' "${Principal}:(F)" | Out-Null
 Assert-Exit 'Protecting configuration secrets'
 
@@ -73,4 +83,4 @@ Start-Sleep -Seconds 2
 $Health = Invoke-RestMethod "http://127.0.0.1:$Port/health"
 if ($Health.status -ne 'ok') { throw 'The health check did not succeed.' }
 Write-Host "FlightDeck is running at http://127.0.0.1:$Port. Point your HTTPS reverse proxy here."
-Write-Host 'Connection settings are in .env. Do not expose that file through your reverse proxy.'
+Write-Host 'Users register and add their own AeroAPI keys in the app. Keep .env, data and secrets private.'

@@ -13,7 +13,7 @@ NOW=datetime(2026,10,19,12,tzinfo=timezone.utc)
 
 
 def setup(tmp_path, **kwargs):
-    settings=Settings(database=str(tmp_path/'test.sqlite3'),access_token='t'*40,**kwargs)
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),**kwargs)
     db=Database(settings.database)
     gate=BudgetGate(db,settings,lambda:NOW)
     gate.account_observed(0,NOW)

@@ -1,7 +1,32 @@
 from datetime import date
 import re
 from typing import Annotated
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+
+
+class Credentials(BaseModel):
+    username: str = Field(min_length=3,max_length=32)
+    password: SecretStr = Field(min_length=12,max_length=128)
+
+    @field_validator('username')
+    @classmethod
+    def normalize_username(cls,value):
+        value = value.strip().lower()
+        if not re.fullmatch(r'[a-z0-9][a-z0-9._-]{2,31}',value):
+            raise ValueError('Use 3–32 letters, numbers, dots, underscores or hyphens')
+        return value
+
+
+class APIKeyInput(BaseModel):
+    api_key: SecretStr = Field(min_length=10,max_length=512)
+
+    @field_validator('api_key')
+    @classmethod
+    def key_format(cls,value):
+        key = value.get_secret_value()
+        if key != key.strip() or any(ord(c) < 33 or ord(c) > 126 for c in key):
+            raise ValueError('Paste the API key without spaces')
+        return value
 
 
 class LegInput(BaseModel):

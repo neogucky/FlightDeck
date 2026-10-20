@@ -18,3 +18,5 @@ xcuserdata/
 server/data/
 server/logs/
 server/.service/
+server/secrets/
+*.key

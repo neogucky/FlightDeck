@@ -76,6 +76,15 @@ class BudgetGate:
                     (request_id+':'+month,month,FLIGHT_RESERVATION_MICRO,now.isoformat(),'reserved',endpoint))
         return request_id
 
+    def claim_provider_call(self, kind):
+        now = self.clock()
+        with self.db.transaction() as con:
+            cutoff = (now-timedelta(seconds=60)).isoformat()
+            con.execute('DELETE FROM provider_attempts WHERE created_at < ?',(cutoff,))
+            if con.execute('SELECT COUNT(*) FROM provider_attempts').fetchone()[0] >= 10:
+                raise ConnectorError('API request rate reached. Please wait one minute.','rate_limited')
+            con.execute('INSERT INTO provider_attempts VALUES (?,?,?)',(str(uuid4()),now.isoformat(),kind))
+
     def finish(self, request_id, outcome):
         with self.db.connect() as con:
             con.execute('UPDATE reservations SET outcome=? WHERE substr(id,1,36)=?',(outcome,request_id))
@@ -96,24 +105,38 @@ class BudgetGate:
                 'account_checked_at':account[1] if account else None}
 
 
+    def history(self):
+        with self.db.connect() as con:
+            rows = con.execute('SELECT month FROM reservations UNION SELECT month FROM account_usage ORDER BY month DESC LIMIT 12').fetchall()
+            result = []
+            for row in rows:
+                local = con.execute('SELECT COALESCE(SUM(amount_micro),0),COUNT(*) FROM reservations WHERE month=?',(row[0],)).fetchone()
+                reported = con.execute('SELECT high_water_micro FROM account_usage WHERE month=?',(row[0],)).fetchone()
+                reported_micro = reported[0] if reported else 0
+                result.append({'month':row[0],'reserved_usd':local[0]/1_000_000,'provider_reported_usd':reported_micro/1_000_000,
+                               'conservative_used_usd':(local[0]+reported_micro)/1_000_000,'request_count':local[1]})
+        return result
+
+
 class AeroAPI:
     def __init__(self, db, settings, clock=utcnow, transport=None):
         self.db,self.settings,self.clock=db,settings,clock
         self.gate=BudgetGate(db,settings,clock)
-        self.client=httpx.AsyncClient(base_url=BASE_URL,headers={'x-apikey':settings.api_key,'Accept':'application/json'},
-                                     timeout=httpx.Timeout(15),follow_redirects=False,transport=transport)
         # Swapping keys cannot reset the durable ledger; switching keys in an existing DB fails closed.
         fingerprint=hashlib.sha256(settings.api_key.encode()).hexdigest()
         previous=db.meta('api_key_fingerprint')
         if previous and previous != fingerprint:
             raise ValueError('The API key changed. Reconcile billing before switching accounts; do not reset the ledger.')
         db.set_meta('api_key_fingerprint',fingerprint)
+        self.client=httpx.AsyncClient(base_url=BASE_URL,headers={'x-apikey':settings.api_key,'Accept':'application/json'},
+                                     timeout=httpx.Timeout(15),follow_redirects=False,transport=transport)
 
     async def close(self):
         await self.client.aclose()
 
     async def account_usage(self):
         now=self.clock()
+        self.gate.claim_provider_call('usage')
         try:
             response=await self.client.get('/account/usage',params={'start':now.strftime('%Y-%m-01'),'all_keys':'true'})
             response.raise_for_status()
@@ -136,6 +159,7 @@ class AeroAPI:
         await self.account_usage()  # Free endpoint, all keys, no unverified spending.
         reservation=self.gate.reserve('flights')
         try:
+            self.gate.claim_provider_call('flight')
             response=await self.client.get('/flights/'+quote(ident,safe=''),params=params)
             response.raise_for_status()
             payload=response.json()
@@ -155,3 +179,23 @@ class AeroAPI:
             self.gate.finish(reservation,'failed_or_uncertain')
             # Never echo upstream URLs, headers, credentials or provider exception text.
             raise ConnectorError('The flight provider could not be reached. Your saved information has been kept.')
+
+
+async def verify_api_key(key, gate, *, transport=None):
+    """Validate using only the free usage endpoint; never return provider credentials."""
+    gate.claim_provider_call('key_verification')
+    try:
+        async with httpx.AsyncClient(base_url=BASE_URL,headers={'x-apikey':key,'Accept':'application/json'},
+                                    timeout=httpx.Timeout(15),follow_redirects=False,transport=transport) as client:
+            response = await client.get('/account/usage',params={'start':gate.clock().strftime('%Y-%m-01'),'all_keys':'true'})
+            if response.status_code in (401,403):
+                raise ConnectorError('This AeroAPI key was not accepted. Check your FlightAware account.','invalid_api_key')
+            response.raise_for_status()
+            cost = Decimal(str(response.json(parse_float=Decimal)['total_cost']))
+            if not cost.is_finite() or cost < 0:
+                raise ValueError()
+            return cost
+    except ConnectorError:
+        raise
+    except Exception:
+        raise ConnectorError('The key could not be verified with FlightAware. It has not been saved.','usage_unverified') from None

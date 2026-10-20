@@ -22,10 +22,11 @@ def payload():
 
 
 def test_authenticated_connected_trip_round_trip_and_persistence(tmp_path):
-    settings=Settings(database=str(tmp_path/'test.sqlite3'),access_token=TOKEN)
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='demo')
     app=create_app(settings,clock=lambda:NOW)
-    headers={'Authorization':'Bearer '+TOKEN}
     with TestClient(app) as client:
+        session=client.post('/v1/auth/register',json={'username':'tester','password':'long-enough-test-password'}).json()
+        headers={'Authorization':'Bearer '+session['session_token']}
         assert client.get('/health').status_code==200
         assert client.get('/v1/state').status_code==401
         assert client.post('/v1/refresh').status_code==401
@@ -55,17 +56,18 @@ def test_validation_rejects_disconnected_duplicate_or_reversed_legs():
 
 
 def test_old_manual_history_survives_provider_retention(tmp_path):
-    settings=Settings(database=str(tmp_path/'test.sqlite3'),access_token=TOKEN)
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='demo')
     app=create_app(settings,clock=lambda:NOW)
-    headers={'Authorization':'Bearer '+TOKEN}
     with TestClient(app) as client:
+        session=client.post('/v1/auth/register',json={'username':'tester','password':'long-enough-test-password'}).json()
+        headers={'Authorization':'Bearer '+session['session_token']}
         p=payload();p['legs']=[p['legs'][0]];p['legs'][0]['departure_date']='2024-04-01'
         state=client.post('/v1/trips',headers=headers,json=p).json()
         leg=state['trips'][0]['legs'][0]
         assert leg['snapshot'] is None
         assert state['issues'][0]['code']=='outside_live_window'
         assert leg['origin_iata']=='HAM'
-        app.state.db.save_snapshot(leg['id'],{'fetched_at':(NOW-timedelta(days=30)).isoformat(),'flight':{'private':'expired'}})
+        app.state.accounts.tenant(state['account']['id']).save_snapshot(leg['id'],{'fetched_at':(NOW-timedelta(days=30)).isoformat(),'flight':{'private':'expired'}})
         state=client.get('/v1/state',headers=headers).json()
         assert state['trips'][0]['legs'][0]['snapshot'] is None
         assert state['trips'][0]['legs'][0]['flight_number']=='LH2055'
@@ -85,7 +87,7 @@ def test_matching_uses_local_departure_date_and_never_guesses():
 
 
 def test_incoming_aircraft_swap_invalidates_previous_link_and_cache_ttl(tmp_path):
-    settings=Settings(database=str(tmp_path/'test.sqlite3'),access_token=TOKEN,mode='live',api_key='not-a-real-key')
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='live',api_key='not-a-real-key')
     db=Database(settings.database)
     class Stub:
         calls=0
@@ -104,7 +106,7 @@ def test_incoming_aircraft_swap_invalidates_previous_link_and_cache_ttl(tmp_path
 
 
 def test_shared_api_cache_does_not_make_old_data_appear_fresh(tmp_path):
-    settings=Settings(database=str(tmp_path/'test.sqlite3'),access_token=TOKEN,mode='live',api_key='not-a-real-key')
+    settings=Settings(database=str(tmp_path/'test.sqlite3'),mode='live',api_key='not-a-real-key')
     db=Database(settings.database)
     fetched=(NOW-timedelta(minutes=14)).isoformat()
     class Stub:
