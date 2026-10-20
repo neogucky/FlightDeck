@@ -2,10 +2,11 @@ import Foundation
 import Security
 
 enum ConnectionError: LocalizedError {
-    case invalidURL, unauthorized, response(String)
+    case invalidURL, insecureURL, unauthorized, response(String)
     var errorDescription: String? {
         switch self {
-        case .invalidURL: "Enter an HTTPS server address without a path, query, or embedded credentials."
+        case .invalidURL: "Enter a valid server address, such as https://server.example.com:8080/flights, without a query or embedded credentials."
+        case .insecureURL: "Use HTTPS to protect your password, session and API key. HTTP is supported only for localhost development."
         case .unauthorized: "Your session has expired. Sign in again in Settings."
         case .response(let message): message
         }
@@ -47,13 +48,47 @@ struct APIClient {
     let baseURL: URL
     let token: String
     init(address: String, token: String = "") throws {
-        guard let url = URL(string:address.trimmingCharacters(in:.whitespacesAndNewlines)),
-              let host = url.host, url.user == nil, url.password == nil,
-              url.query == nil, url.fragment == nil, url.path.isEmpty || url.path == "/",
-              url.scheme == "https" || (url.scheme == "http" && ["localhost","127.0.0.1","::1"].contains(host)) else {
+        let input = address.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !input.isEmpty,!input.hasPrefix("//"),
+              var parts = URLComponents(string:input.contains("://") ? input:"https://"+input),
+              let host = parts.host,!host.isEmpty,
+              host.rangeOfCharacter(from:.whitespacesAndNewlines.union(.controlCharacters)) == nil,
+              let scheme = parts.scheme?.lowercased(),["https","http"].contains(scheme),
+              parts.user == nil,parts.password == nil,parts.query == nil,parts.fragment == nil,
+              parts.port == nil || (1...65535).contains(parts.port!),Self.safePath(parts.percentEncodedPath) else {
             throw ConnectionError.invalidURL
         }
-        self.baseURL = url; self.token = token
+        let normalizedHost = host.lowercased()
+        guard scheme == "https" || ["localhost","127.0.0.1","[::1]"].contains(normalizedHost) else {
+            throw ConnectionError.insecureURL
+        }
+        parts.scheme = scheme;parts.host = normalizedHost
+        while parts.percentEncodedPath.hasSuffix("/") { parts.percentEncodedPath.removeLast() }
+        guard let url = parts.url else { throw ConnectionError.invalidURL }
+        self.baseURL = url;self.token = token
+    }
+    // Compose paths explicitly: resolving a leading /v1 path would discard a proxy prefix.
+    func requestURL(_ path: String) throws -> URL {
+        guard let route = URLComponents(string:path),route.scheme == nil,route.host == nil,
+              route.user == nil,route.password == nil,route.fragment == nil,
+              route.percentEncodedPath.hasPrefix("/v1/"),Self.safePath(route.percentEncodedPath),
+              var parts = URLComponents(url:baseURL,resolvingAgainstBaseURL:false) else {
+            throw ConnectionError.invalidURL
+        }
+        parts.percentEncodedPath += route.percentEncodedPath
+        parts.percentEncodedQuery = route.percentEncodedQuery
+        guard let url = parts.url,url.host == baseURL.host,url.scheme == baseURL.scheme,url.port == baseURL.port else {
+            throw ConnectionError.invalidURL
+        }
+        return url
+    }
+    private static func safePath(_ path: String) -> Bool {
+        guard !path.contains("//") else { return false }
+        return path.split(separator:"/").allSatisfy { segment in
+            guard let decoded = String(segment).removingPercentEncoding else { return false }
+            return decoded != "." && decoded != ".." && !decoded.contains("/") && !decoded.contains("\\") &&
+                !decoded.contains("%") && decoded.rangeOfCharacter(from:.controlCharacters) == nil
+        }
     }
     func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> ServerState {
         try await send(path,method:method,body:body,as:ServerState.self)
@@ -66,8 +101,7 @@ struct APIClient {
         _ = try await data(path,method:method,body:nil)
     }
     private func data(_ path: String, method: String, body: Data?) async throws -> Data {
-        guard path.hasPrefix("/v1/"), !path.hasPrefix("//"),let url = URL(string:path,relativeTo:baseURL),
-              url.host == baseURL.host, url.scheme == baseURL.scheme, url.port == baseURL.port else { throw ConnectionError.invalidURL }
+        let url = try requestURL(path)
         var req = URLRequest(url:url); req.httpMethod = method; req.timeoutInterval = 60
         if !token.isEmpty { req.setValue("Bearer \(token)",forHTTPHeaderField:"Authorization") }
         req.setValue("application/json",forHTTPHeaderField:"Content-Type");req.httpBody = body

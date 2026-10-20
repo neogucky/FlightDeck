@@ -75,6 +75,8 @@ Calendar scanning happens on the phone and makes no AeroAPI requests. Only fligh
 
 The data flow is **iPhone app → FlightDeck server → FlightAware AeroAPI**. The server stores your trips, protects the provider key, caches flight data and accounts for API usage. Each user registers on their chosen server and supplies their own provider key.
 
+Server URLs can include a port and a reverse-proxy path, for example `https://server.example.com:8080/flights`. FlightDeck keeps that prefix on every request, such as `/flights/v1/server` and `/flights/v1/auth/login`. If you omit the scheme, the app adds `https://`.
+
 ## Getting started
 
 ### 1. Start the server

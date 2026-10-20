@@ -47,7 +47,7 @@ struct ServerConnectionForm: View {
     var body: some View {
         VStack(alignment:.leading,spacing:18) {
             Text("YOUR SERVER").eyebrow().foregroundStyle(Deck.muted)
-            TextField("https://flights.example.com",text:$address).textContentType(.URL).keyboardType(.URL)
+            TextField("https://server.example.com:8080/flights",text:$address).textContentType(.URL).keyboardType(.URL)
                 .focused($focused).textInputAutocapitalization(.never).autocorrectionDisabled()
                 .accessibilityIdentifier("serverAddress").submitLabel(.go).onSubmit { connect() }
             Button { connect() } label: {
@@ -59,7 +59,7 @@ struct ServerConnectionForm: View {
             }.disabled(connecting || address.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("connectServer")
             if let error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
-            Text("Connect to your own server or one you trust, then sign in or create an account. A private HTTPS certificate must be trusted on your phone.")
+            Text("Connect to your own server or one you trust, then sign in or create an account. Ports and paths such as /flights are supported. HTTPS is added if omitted; a private certificate must be trusted on your phone.")
                 .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
         }.deckCard()
             .onAppear { address = store.address }

@@ -8,6 +8,8 @@ from flightdeck.config import Settings
 from flightdeck.main import create_app
 import httpx
 import uvicorn
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 
 def mock_provider(request):
@@ -39,5 +41,8 @@ def mock_provider(request):
 if __name__=='__main__':
     with tempfile.TemporaryDirectory(prefix='flightdeck-integration-') as directory:
         settings=Settings(mode='live',database=str(Path(directory)/'accounts.sqlite3'))
-        uvicorn.run(create_app(settings,transport=httpx.MockTransport(mock_provider)),host='127.0.0.1',port=18787,
+        fixture=create_app(settings,transport=httpx.MockTransport(mock_provider))
+        # Exercise the same backend both directly and behind a prefix-stripping proxy.
+        app=Starlette(routes=[Mount('/flights',app=fixture),Mount('/',app=fixture)])
+        uvicorn.run(app,host='127.0.0.1',port=18787,
                     log_level='warning',access_log=False,proxy_headers=False)

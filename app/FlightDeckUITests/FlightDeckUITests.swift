@@ -15,8 +15,15 @@ final class FlightDeckUITests: XCTestCase {
         field.typeText(text)
         if app.buttons["Done"].exists { app.buttons["Done"].tap() }
     }
-    private func authenticate(_ app: XCUIApplication, username: String, register: Bool) {
-        fill(app.textFields["serverAddress"],"http://localhost:18787",app)
+    private func authenticate(_ app: XCUIApplication, username: String, register: Bool, address: String = "http://localhost:18787") {
+        let field = app.textFields["serverAddress"]
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        let slashes = CharacterSet(charactersIn:"/")
+        // Reuse the saved canonical URL after sign-out instead of tapping into its middle.
+        if (field.value as? String)?.trimmingCharacters(in:slashes) != address.trimmingCharacters(in:slashes) {
+            fill(field,address,app)
+        }
+        XCTAssertEqual((field.value as? String)?.trimmingCharacters(in:slashes),address.trimmingCharacters(in:slashes))
         app.buttons["connectServer"].tap()
         XCTAssertTrue(app.textFields["accountUsername"].waitForExistence(timeout:10))
         capture("Account sign in",app)
@@ -31,7 +38,8 @@ final class FlightDeckUITests: XCTestCase {
     func testAccountOnboardingSessionAndUsageIsolation() {
         let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
         let username = "ui-"+UUID().uuidString.prefix(10).lowercased()
-        authenticate(app,username:username,register:true)
+        let address = "http://localhost:18787/flights/"
+        authenticate(app,username:username,register:true,address:address)
         XCTAssertTrue(app.secureTextFields["providerAPIKey"].waitForExistence(timeout:10))
         capture("API key setup",app)
         fill(app.secureTextFields["providerAPIKey"],"flightdeck-test-ui-key-"+username,app)
@@ -62,14 +70,14 @@ final class FlightDeckUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["signedInUsername"].label,username)
         app.buttons["signOut"].tap()
         XCTAssertTrue(app.textFields["serverAddress"].waitForExistence(timeout:10))
-        authenticate(app,username:username+"-b",register:true)
+        authenticate(app,username:username+"-b",register:true,address:address)
         XCTAssertTrue(app.buttons["Set up later"].waitForExistence(timeout:10));app.buttons["Set up later"].tap()
         app.tabBars.buttons["Trips"].tap()
         XCTAssertTrue(app.staticTexts["Where to next?"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["nextTrip"].exists)
         app.tabBars.buttons["Settings"].tap();app.buttons["signOut"].tap()
         XCTAssertTrue(app.textFields["serverAddress"].waitForExistence(timeout:10))
-        authenticate(app,username:username,register:false)
+        authenticate(app,username:username,register:false,address:address)
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["signedInUsername"].waitForExistence(timeout:10))

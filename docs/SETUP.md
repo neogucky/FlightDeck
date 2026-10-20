@@ -61,6 +61,12 @@ Nonempty legacy shared databases fail closed rather than being assigned to the f
 
 For a private CA/self-signed setup, the hostname-matching server certificate must be trusted on the iPhone. The app uses normal system TLS validation and never accepts arbitrary certificates. HTTP is supported only for localhost development. Development simulator builds need local signing for Keychain access; no paid Apple certificate is required for ad-hoc simulator signing.
 
+### Servers behind a path prefix
+
+Addresses such as `https://server.example.com:8080/flights` are supported, with or without the trailing slash. An address without a scheme defaults to HTTPS. Every API request preserves the port and path: discovery uses `/flights/v1/server`, login uses `/flights/v1/auth/login`, and subsequent account requests use the same prefix.
+
+Configure the reverse proxy to strip the external `/flights` prefix before forwarding to the backend: `/flights/v1/server` must reach `/v1/server` on `127.0.0.1:8787`. Preserve query strings, Authorization headers, request bodies and HTTP methods, and forward directly without redirects. The Python server's own routes remain rooted at `/v1/`. When connecting by IP over HTTPS, the certificate must cover that IP address and be trusted on the phone.
+
 ## iOS calendar import
 
 Open **Settings → Calendar import**, allow calendar access, and select calendars. Google calendars must be synced with iOS Calendar; installing only the Google Calendar app does not expose its calendars through EventKit. iOS 17 requires full calendar access to read events. FlightDeck never writes, edits or deletes calendar events.
@@ -139,6 +145,14 @@ The Swift integration executable uses the actual native API client and Codable m
 swiftc -parse-as-library app/FlightDeck/Models.swift app/FlightDeck/APIClient.swift \
   app/IntegrationSmoke.swift -o /tmp/flightdeck-smoke
 /tmp/flightdeck-smoke
+```
+
+The fixture and smoke check exercise both root hosting and `/flights` hosting. URL construction and path-isolation checks also run without a server:
+
+```sh
+swiftc -parse-as-library app/FlightDeck/Models.swift app/FlightDeck/APIClient.swift \
+  app/APIClientTests.swift -o /tmp/flightdeck-api-url-tests
+/tmp/flightdeck-api-url-tests
 ```
 
 The fixture limits new registrations like the real server; restart it between repeated full test runs. Stop it when finished. Trip status aggregation can be checked separately:
