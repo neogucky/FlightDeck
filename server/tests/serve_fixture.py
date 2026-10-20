@@ -15,7 +15,18 @@ def mock_provider(request):
         return httpx.Response(401)
     if request.url.path.endswith('/account/usage'):
         return httpx.Response(200,json={'total_cost':0.025})
+    if '/schedules/' in request.url.path:
+        start=datetime.fromisoformat(request.url.path.split('/')[-2])+timedelta(days=1,hours=12)
+        return httpx.Response(200,json={'num_pages':1,'scheduled':[{
+            'ident':'SWR1052','ident_iata':'LX1052','ident_icao':'SWR1052','fa_flight_id':None,
+            'origin':'LSZH','origin_icao':'LSZH','origin_iata':'ZRH','destination':'EDDH','destination_icao':'EDDH','destination_iata':'HAM',
+            'scheduled_out':start.isoformat()+'Z','scheduled_in':(start+timedelta(minutes=85)).isoformat()+'Z','aircraft_type':'BCS3'}]})
+    if '/airports/' in request.url.path:
+        code=request.url.path.rsplit('/',1)[-1]
+        iata,city,zone=('ZRH','Zurich','Europe/Zurich') if code=='LSZH' else ('HAM','Hamburg','Europe/Berlin')
+        return httpx.Response(200,json={'airport_code':code,'code_icao':code,'code_iata':iata,'city':city,'name':city+' Airport','timezone':zone})
     number=request.url.path.rsplit('/',1)[-1]
+    if number=='LX1052':return httpx.Response(200,json={'num_pages':1,'flights':[]})
     origin,destination=('MUC','ZRH') if number.startswith('LX') else ('HAM','MUC')
     airports={'HAM':('Hamburg','Europe/Berlin'),'MUC':('Munich','Europe/Berlin'),'ZRH':('Zurich','Europe/Zurich')}
     def airport(code):return {'code_iata':code,'city':airports[code][0],'timezone':airports[code][1]}

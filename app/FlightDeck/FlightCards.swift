@@ -60,6 +60,10 @@ struct JourneyHero: View {
                 Spacer()
                 StatusBadge(trip:trip,dark:true).fixedSize()
             }
+            if trip.legs.contains(where: { $0.snapshot?.isSchedule == true }) {
+                Text("Published schedule. Live status becomes available closer to departure.")
+                    .font(.system(size:11)).foregroundStyle(.white.opacity(0.75)).fixedSize(horizontal:false,vertical:true)
+            }
         }.padding(24).foregroundStyle(.white)
             .background(LinearGradient(colors:[Deck.ink,Color(red:0.16,green:0.27,blue:0.34)],startPoint:.topLeading,endPoint:.bottomTrailing))
             .overlay(alignment:.topTrailing) {
@@ -93,8 +97,9 @@ struct IncomingCard: View {
                     Text("\(inbound.flightNumber) · \(inbound.statusLabel)")
                         .font(.system(size:12)).foregroundStyle(Deck.muted)
                 } else {
-                    Text("Waiting for its next assignment").font(.system(size:14,weight:.semibold)).foregroundStyle(Deck.ink)
-                    Text(leg.snapshot?.inboundNote ?? "We’ll show the previous flight when it is confirmed.")
+                    Text(leg.snapshot == nil ? "Flight details not available yet":leg.snapshot?.isSchedule == true ? "Available closer to departure":"Waiting for its next assignment")
+                        .font(.system(size:14,weight:.semibold)).foregroundStyle(Deck.ink)
+                    Text(leg.snapshot?.inboundNote ?? "Aircraft information will appear after the flight details are found.")
                         .font(.system(size:12)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
                 }
             }

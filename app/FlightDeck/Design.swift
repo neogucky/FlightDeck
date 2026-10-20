@@ -34,6 +34,7 @@ struct StatusBadge: View {
     let label: String
     let warning: Bool
     let dark: Bool
+    var pending: Bool { ["Awaiting status","Schedule only","Live status pending"].contains(label) }
     init(flight: FlightInfo?, dark: Bool = false) {
         label = flight?.statusLabel ?? "Awaiting status"
         warning = flight?.cancelled == true || flight?.diverted == true || (flight?.departureDelayMinutes ?? 0) >= 5
@@ -46,9 +47,10 @@ struct StatusBadge: View {
     }
     var body: some View {
         HStack(spacing:5) {
-            Circle().fill(warning ? Deck.orange : (dark ? Color.mint:Deck.green)).frame(width:5,height:5)
+            if pending { Image(systemName:"clock").font(.system(size:10)) }
+            else { Circle().fill(warning ? Deck.orange : (dark ? Color.mint:Deck.green)).frame(width:5,height:5) }
             Text(label).font(.system(size:11,weight:.semibold))
-        }.foregroundStyle(dark ? .white : warning ? Deck.orange:Deck.green)
+        }.foregroundStyle(dark ? .white : warning ? Deck.orange:pending ? Deck.muted:Deck.green)
             .padding(.horizontal,10).padding(.vertical,7)
             .background(dark ? Color.white.opacity(0.10) : (warning ? Deck.orange:Deck.green).opacity(0.08),in:Capsule())
     }

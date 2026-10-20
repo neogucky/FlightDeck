@@ -1,6 +1,6 @@
 # AeroAPI spending gate
 
-The sole provider integration is `flightdeck/connector.py`. Its only paid operation is `GET /flights/{ident}`. It cannot call arbitrary endpoints and does not follow pagination links or redirects.
+The sole provider integration is `flightdeck/connector.py`. Its paid operations are allowlisted: `GET /flights/{ident}`, filtered `GET /schedules/{date_start}/{date_end}`, and `GET /airports/{id}`. It cannot call arbitrary endpoints and does not follow pagination links or redirects.
 
 ## Account scope
 
@@ -10,11 +10,13 @@ API-key setup verifies access using the usage endpoint before storing the key. O
 
 ## Conservative accounting
 
-Prices reviewed on **19 October 2026**:
+Prices reviewed on **20 October 2026**:
 
 - Flight-information lookup: published **$0.005 per result set**, capped with `max_pages=1`.
+- Published schedule lookup: **$0.020 per result set**, capped with `max_pages=1` and filtered by airline and numeric flight number.
+- Airport metadata lookup: **$0.015** per result set; this endpoint returns one airport object rather than a paged collection.
 - Account-wide usage lookup: published **$0**.
-- This installation reserves **$0.01 per flight-information call**, twice the published price.
+- This installation reserves **$0.01 per flight-information call**, **$0.04 per schedule call**, and **$0.03 per airport metadata call**, twice each published price. A cold schedule plus two airport lookups reserves $0.10. Every endpoint checks that its complete reservation fits before sending the paid request.
 - Operational ceiling: **$4.50/month**. The configured budget may be lower, never higher. An additional $0.50 remains below the requested $5 limit.
 
 Before each paid request, the connector queries `/account/usage?all_keys=true` and records the maximum observed undiscounted account cost. An unavailable, malformed, stale or non-finite usage report prevents paid requests. The provider documents account metering as updating every ten minutes.
@@ -24,6 +26,8 @@ The gate compares **all local reservations plus the highest reported account usa
 Reservations are committed with SQLite `BEGIN IMMEDIATE` **before** the HTTP request. Concurrent processes share that ledger. A reservation is never refunded, even for network timeouts, errors, process crashes, cancellations or unknown outcomes. There are no automatic retries. A durable limit of four paid requests per rolling minute allows headroom for the free usage checks within the Personal tier's ten result sets/minute, without assuming free requests are exempt. Forced refresh still shares a 60-second cache.
 
 An additional durable gate counts every provider HTTP attempt against ten per rolling minute for the user, including free usage refreshes and key verification. The Usage tab's provider refresh never calls a paid flight endpoint. Its conservative total is reported spend plus local reservations and is deliberately not a billing invoice.
+
+Advance schedules and airport metadata use a 24-hour cache per user. Pull-to-refresh can bypass the daily schedule cache after 60 seconds; it reuses airport metadata. Schedule-only snapshots switch to live lookup within approximately 47 hours of the known scheduled departure, regardless of daily cache freshness. Automatic failed live lookups wait at least 15 minutes before retrying; future schedule attempts wait a day, while explicit refresh can retry after 60 seconds. A rate-limited lookup can retry automatically after 60 seconds, allowing a connected trip to finish its metadata lookups as capacity becomes available. These cooldowns also retain the last lookup explanation so polling does not silently erase an error.
 
 Within 24 hours of a UTC month boundary, each reservation counts in both adjacent months, conservatively covering timezone/processing ambiguity. Unexpected page counts or response sizes latch a persistent billing block; further paid calls require review. Keys can be replaced only through authenticated account setup, which preserves the ledger and updates its credential binding. Unapproved direct key changes still fail closed.
 

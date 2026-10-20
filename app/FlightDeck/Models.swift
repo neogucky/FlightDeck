@@ -79,7 +79,9 @@ struct FlightSnapshot: Codable, Hashable {
     var flight: FlightInfo
     var inbound: FlightInfo?
     var inboundNote: String?
-    var isStale: Bool { Date().timeIntervalSince(FlightTime.date(fetchedAt) ?? .distantPast) >= 900 }
+    var source: String? = nil
+    var isSchedule: Bool { source == "schedule" || flight.status == "Schedule only" }
+    var isStale: Bool { Date().timeIntervalSince(FlightTime.date(fetchedAt) ?? .distantPast) >= (isSchedule ? 86400:900) }
 }
 
 struct FlightLeg: Codable, Identifiable, Hashable {
@@ -89,6 +91,7 @@ struct FlightLeg: Codable, Identifiable, Hashable {
     var originIata: String?
     var destinationIata: String?
     var snapshot: FlightSnapshot?
+    var issue: RefreshIssue? = nil
     var origin: String { snapshot?.flight.origin.iata ?? originIata ?? "—" }
     var destination: String { snapshot?.flight.destination.iata ?? destinationIata ?? "—" }
     var departureDay: Date { FlightTime.dayDate(departureDate) }
@@ -123,6 +126,9 @@ struct Trip: Codable, Identifiable, Hashable {
         }
         if flights.contains(where: { $0.actualDeparture != nil }) { return JourneyStatus(label:"In progress") }
         guard !remaining.isEmpty, flights.count == remaining.count else { return JourneyStatus(label:"Awaiting status") }
+        if flights.contains(where: { $0.status == "Schedule only" }) {
+            return JourneyStatus(label:flights.allSatisfy { $0.status == "Schedule only" } ? "Schedule only":"Live status pending")
+        }
         if remaining.count < legs.count { return JourneyStatus(label:"Connecting") }
         if flights.allSatisfy({ $0.statusLabel == "On time" }) {
             return JourneyStatus(label:legs.count > 1 ? "All on time":"On time")
@@ -155,7 +161,7 @@ struct Usage: Codable {
     var accountCheckedAt: String?
 }
 
-struct RefreshIssue: Codable, Identifiable {
+struct RefreshIssue: Codable, Identifiable, Hashable {
     var legId: String
     var code: String
     var message: String

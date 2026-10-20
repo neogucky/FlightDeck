@@ -4,7 +4,7 @@ A flight companion that keeps your whole journey, incoming aircraft and flight h
 
 [Overview](previews/overview.png) · [Three flights](previews/overview-three-flights.png) · [Longer trips](previews/overview-long-trip.png) · [Validation](VALIDATION.md)
 
-[Start page](previews/start.png) · [Add flight](previews/add-flight.png) · [Connected flights](previews/add-connected-flights.png) · [Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
+[Schedule overview](previews/schedule-overview.png) · [Start page](previews/start.png) · [Add flight](previews/add-flight.png) · [Connected flights](previews/add-connected-flights.png) · [Account login](previews/account-login.png) · [API-key setup](previews/api-key-setup.png) · [Usage](previews/usage.png) · [Monthly history](previews/usage-history.png)
 
 ## Accounts and flight tracking
 
@@ -14,8 +14,8 @@ A flight companion that keeps your whole journey, incoming aircraft and flight h
 - Every account has its own database: flights, incoming-aircraft snapshots, provider cache, spending ledger and request limits. An identical provider key cannot be attached to a different account, even after removal.
 - Watch your account's current usage and up to 12 months of history in the **Usage** tab. It distinguishes provider-reported spend, local reservations and the intentionally conservative total. Limits are currently managed in server configuration; per-user limit controls are a later addition.
 - Save individual flights or trips with up to eight connected legs, using only flight numbers and departure dates. `LX1055` and `LX 1055` resolve to the same canonical identifier; requests and saved flight labels use `LX1055`. Airports come from matching provider data. The overview displays flight numbers above route arrows for one to three flights; longer journeys use a compact summary.
-- See flight status, local times, aircraft details and a separate incoming-aircraft card per remaining leg. Unknown provider information stays unknown.
-- Refresh when information is over 15 minutes old while the app is visible, or pull to refresh, subject to the safety cache, rate limits and spending gate.
+- See published routes and planned times ahead of departure, then live flight status, aircraft details and a separate incoming-aircraft card per remaining leg as live data becomes available. Schedule-only data is labeled explicitly and never presented as confirmed on-time status.
+- Live information refreshes when over 15 minutes old while the app is visible. Advance schedules and airport metadata are cached for 24 hours to conserve the budget. Pull-to-refresh can update a schedule sooner, subject to the 60-second safety cache, rate limits and spending gate.
 - Keep manually entered flight history permanently. Provider details expire after 29 days. Device caches are partitioned by server and user and cleared on sign-out.
 - Explore a separate local demo without making provider requests. Push notifications and background polling remain deferred.
 
@@ -80,7 +80,9 @@ For a private CA/self-signed setup, the hostname-matching server certificate mus
 
 ## Flight data and history
 
-The connector uses the recent-flight `/flights/{ident}` endpoint and bounded single-page responses. It deliberately does not buy schedule or historical endpoints. Trips can be saved well ahead of departure or long ago, but live details and derived airports are available only close to departure. The app asks for a flight number and departure date, and derives the route from a unique matching occurrence. Ambiguous results stay unresolved instead of guessing. Dates are departure-airport local dates; times are displayed in each airport's timezone. Optional airport filters remain supported by the API for older clients.
+The connector uses `/schedules/{date_start}/{date_end}` for published schedules ahead of the live window, `/airports/{id}` for verified airport timezones/names, and `/flights/{ident}` for live status within approximately 48 hours of departure. Schedule queries require both an airline and a flight-number filter and never paginate. It does not buy historical endpoints. The app asks for a flight number and departure date, and derives the route from one matching occurrence. Ambiguous results stay unresolved instead of guessing. Dates are departure-airport local dates; times are displayed in each airport's timezone. Optional airport filters remain supported by the API for older clients.
+
+Schedule lookups use the same per-account spending gate: a schedule reserves $0.04 and each uncached airport metadata lookup reserves $0.03, twice their reviewed published prices. A cold schedule with two airports reserves $0.10; repeated automatic polling uses cached data. As departure enters the live window, live lookup takes precedence even if the schedule cache is still fresh. A missing live occurrence can fall back to a published schedule, which supplies no confirmed aircraft registration, incoming-flight assignment, or live on-time status. Lookup failures persist on the saved flight and remain visible across state reads, throttled refreshes, and server/app restarts.
 
 Incoming links use FlightAware's `inbound_fa_flight_id` and are re-evaluated when aircraft assignments change. The app does not yet predict missed connections. A provider that has not identified an incoming aircraft cannot supply that link.
 

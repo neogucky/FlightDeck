@@ -32,20 +32,20 @@ struct TripDetailView: View {
                                     Image(systemName:"airplane").font(.system(size:28,weight:.light)).foregroundStyle(Deck.orange)
                                         .frame(width:52,height:52).background(Deck.orange.opacity(0.07),in:RoundedRectangle(cornerRadius:16))
                                     VStack(alignment:.leading,spacing:5) {
-                                        Text("YOUR AIRCRAFT").eyebrow().foregroundStyle(Deck.muted)
+                                        Text(leg.snapshot?.isSchedule == true ? "PLANNED AIRCRAFT TYPE":"YOUR AIRCRAFT").eyebrow().foregroundStyle(Deck.muted)
                                         Text(f.aircraftName).font(.system(size:16,weight:.semibold))
                                         Text(f.registration ?? "Registration not yet available").font(.system(size:12,design:.monospaced)).foregroundStyle(Deck.muted)
                                     }
                                     Spacer()
                                 }.deckCard(padding:18)
                             }
-                            if let issue = store.issues.first(where: { $0.legId == leg.id }) {
+                            if let issue = leg.issue ?? store.issues.first(where: { $0.legId == leg.id }) {
                                 Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.orange)
                             }
                             if let snapshot = leg.snapshot {
                                 HStack(spacing:5) {
                                     Image(systemName:snapshot.isStale ? "clock.badge.exclamationmark":"checkmark.circle")
-                                    Text("Updated \((FlightTime.date(snapshot.fetchedAt) ?? .distantPast).formatted(.relative(presentation:.named)))")
+                                    Text("\(snapshot.isSchedule ? "Schedule checked":"Updated") \((FlightTime.date(snapshot.fetchedAt) ?? .distantPast).formatted(.relative(presentation:.named)))")
                                     if snapshot.isStale { Text("· May be outdated") }
                                 }.font(.system(size:10)).foregroundStyle(Deck.muted)
                             } else {

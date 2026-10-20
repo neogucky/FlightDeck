@@ -96,7 +96,7 @@ def create_app(settings=None, *, transport=None, clock=None):
                 if api: await api.close()
 
     def state(user,service,gate,issues=None):
-        return {'mode':settings.mode,'account':accounts.public(user),'trips':service.list(),'usage':gate.summary(),'issues':issues or []}
+        return {'mode':settings.mode,'account':accounts.public(user),'trips':service.list(),'usage':gate.summary(),'issues':service.issues() if issues is None else issues}
 
     @app.get('/health')
     def health():

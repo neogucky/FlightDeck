@@ -16,6 +16,15 @@ enum TripPresentationTests {
         let baseline = DemoData.trips()[0]
         expect(baseline.status == JourneyStatus(label:"All on time"),"Both legs must be on time")
 
+        var scheduled = baseline
+        for i in scheduled.legs.indices {
+            scheduled.legs[i].snapshot?.source = "schedule"
+            scheduled.legs[i].snapshot?.flight.status = "Schedule only"
+        }
+        expect(scheduled.status.label == "Schedule only","A published schedule must never claim on-time live status")
+        scheduled.legs[0] = baseline.legs[0]
+        expect(scheduled.status.label == "Live status pending","One live leg cannot imply the whole trip has live status")
+
         var trip = baseline
         trip.legs[1].snapshot?.flight.departureDelayMinutes = 25
         expect(trip.status == JourneyStatus(label:"Flight delayed",warning:true),"A delayed connection must affect the trip")

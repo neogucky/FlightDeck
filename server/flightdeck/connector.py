@@ -3,15 +3,16 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
+import re
 from urllib.parse import quote
 from uuid import uuid4
 import httpx
 from .database import utcnow
 
 BASE_URL = 'https://aeroapi.flightaware.com/aeroapi'
-# Reviewed 2026-10-19: /flights/{ident} = $0.005/result set, /account/usage = $0.
-# Reserve DOUBLE the published flight price. Never credit failures or uncertain requests.
+# Reviewed 2026-10-20. Reserve DOUBLE each published endpoint price.
 FLIGHT_RESERVATION_MICRO = 10_000
+RESERVATIONS_MICRO = {'flights':FLIGHT_RESERVATION_MICRO,'schedules':40_000,'airports':30_000}
 
 
 class ConnectorError(Exception):
@@ -47,8 +48,9 @@ class BudgetGate:
 
     def reserve(self, endpoint):
         now=self.clock()
-        if endpoint != 'flights':
+        if endpoint not in RESERVATIONS_MICRO:
             raise ConnectorError('Unpriced endpoint blocked.', 'pricing_unverified')
+        amount = RESERVATIONS_MICRO[endpoint]
         if now.date() > self.settings.pricing_valid_until:
             raise ConnectorError('The API price review has expired. Review prices before making more calls.', 'pricing_expired')
         request_id=str(uuid4())
@@ -69,11 +71,11 @@ class BudgetGate:
                     raise ConnectorError('A recent account-wide usage check is required.', 'usage_unverified')
                 # Intentionally double-count our own usage: reported account usage PLUS every local reservation.
                 effective=local+(account[0] if account else 0)
-                if effective+FLIGHT_RESERVATION_MICRO > self.settings.budget_micro:
+                if effective+amount > self.settings.budget_micro:
                     raise ConnectorError('Monthly safety budget reached. Saved flight information is still available.', 'budget_exhausted')
             for month in self.months(now):
                 con.execute('INSERT INTO reservations VALUES (?,?,?,?,?,?)',
-                    (request_id+':'+month,month,FLIGHT_RESERVATION_MICRO,now.isoformat(),'reserved',endpoint))
+                    (request_id+':'+month,month,amount,now.isoformat(),'reserved',endpoint))
         return request_id
 
     def claim_provider_call(self, kind):
@@ -151,27 +153,51 @@ class AeroAPI:
         params={'max_pages':1,'ident_type':ident_type}
         if start: params['start']=start
         if end: params['end']=end
-        key=json.dumps([ident,params],sort_keys=True)
+        return await self._lookup('/flights/'+quote(ident,safe=''),params,'flights','flights',force=force)
+
+    async def schedules(self, ident, day, *, force=False):
+        # Never issue an unfiltered all-airline schedule request. Suffixes cannot
+        # be represented by the provider's integer flight_number parameter.
+        match=re.fullmatch(r'([A-Z]{3}|[A-Z0-9]{2})([0-9]{1,4})',ident)
+        if not match:
+            raise ConnectorError('Advance schedules require a flight number such as LX1052. Live lookup will be available closer to departure.','schedule_identifier_unsupported')
+        start=day-timedelta(days=1);end=day+timedelta(days=2)
+        params={'airline':match[1],'flight_number':int(match[2]),'max_pages':1,
+                'include_codeshares':'true','include_regional':'true'}
+        return await self._lookup(f'/schedules/{start}/{end}',params,'schedules','scheduled',ttl=86400,force=force)
+
+    async def airport(self, code):
+        if not isinstance(code,str) or not re.fullmatch(r'[A-Z0-9]{3,4}',code):
+            raise ConnectorError('The schedule returned an invalid airport code.','schedule_unresolved')
+        # Airport metadata is static; a pull-to-refresh never bypasses this cache.
+        return await self._lookup('/airports/'+quote(code,safe=''),{},'airports',None,ttl=86400)
+
+    async def _lookup(self, path, params, endpoint, result_field, *, ttl=900, force=False):
+        key=json.dumps([path,params],sort_keys=True)
         # Pull-to-refresh can bypass the 15min cache, but never the 60sec safety cache.
-        cached=self.db.cached(key,self.clock(),60 if force else 900)
+        cached=self.db.cached(key,self.clock(),60 if force else ttl)
         if cached is not None:
             return cached
         await self.account_usage()  # Free endpoint, all keys, no unverified spending.
-        reservation=self.gate.reserve('flights')
+        reservation=self.gate.reserve(endpoint)
         try:
-            self.gate.claim_provider_call('flight')
-            response=await self.client.get('/flights/'+quote(ident,safe=''),params=params)
+            self.gate.claim_provider_call(endpoint)
+            response=await self.client.get(path,params=params)
+            if response.status_code in (401,403):
+                raise ConnectorError('Your AeroAPI account did not allow this lookup. Check API access in FlightAware; your flight is still saved.','provider_access_denied')
             response.raise_for_status()
             payload=response.json()
-            if not isinstance(payload.get('flights'),list) or payload.get('num_pages') != 1 or len(payload['flights'])>15:
+            if not isinstance(payload,dict) or (result_field and (not isinstance(payload.get(result_field),list) or payload.get('num_pages') != 1 or len(payload[result_field])>15)):
                 self.db.set_meta('billing_block','Provider returned an unexpected page structure. Review usage and pricing before resuming.')
                 raise ConnectorError('Unexpected API pagination. Further calls have been blocked.', 'billing_blocked')
             self.gate.finish(reservation,'success')
             fetched_at=self.clock().isoformat()
-            for flight in payload['flights']:
-                flight['_flightdeck_fetched_at']=fetched_at
-            self.db.cache(key,self.clock(),payload['flights'])
-            return payload['flights']
+            result=payload[result_field] if result_field else payload
+            for record in result if result_field else [result]:
+                if not isinstance(record,dict): raise ConnectorError('The provider returned incomplete flight data.','provider_unavailable')
+                record['_flightdeck_fetched_at']=fetched_at
+            self.db.cache(key,self.clock(),result)
+            return result
         except ConnectorError:
             self.gate.finish(reservation,'uncertain')
             raise

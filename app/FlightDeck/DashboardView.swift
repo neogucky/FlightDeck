@@ -31,15 +31,16 @@ struct DashboardView: View {
                     }
                     if let next = store.upcoming.first {
                         NavigationLink(value:next.id) { JourneyHero(trip:next) }.buttonStyle(.plain).accessibilityIdentifier("nextTrip")
+                        if let issue = next.legs.compactMap(\.issue).first ?? store.issues.first(where:{ issue in next.legs.contains(where:{ $0.id == issue.legId }) }) {
+                            Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.orange)
+                                .accessibilityIdentifier("flightLookupIssue")
+                        }
                         VStack(alignment:.leading,spacing:12) {
                             SectionTitle(title:"Incoming aircraft")
                             ForEach(next.legs.filter { !$0.isPast }) { leg in
                                 NavigationLink(value:next.id) { IncomingCard(leg:leg) }.buttonStyle(.plain)
                                     .accessibilityIdentifier("incoming-\(leg.flightNumber)")
                             }
-                        }
-                        if let issue = store.issues.first(where:{ issue in next.legs.contains(where:{ $0.id == issue.legId }) }) {
-                            Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.muted)
                         }
                         HStack(spacing:0) {
                             stat("\(store.upcoming.flatMap(\.legs).count)","UPCOMING FLIGHTS")
@@ -55,7 +56,7 @@ struct DashboardView: View {
                         HStack(spacing:5) {
                             if store.isRefreshing { ProgressView().controlSize(.mini) }
                             else { Image(systemName:"arrow.clockwise").font(.system(size:10)) }
-                            Text(store.isRefreshing ? "Updating your flights…":"Refreshes when information is over 15 minutes old")
+                            Text(store.isRefreshing ? "Updating your flights…":next.legs.allSatisfy { $0.snapshot?.isSchedule == true } ? "Schedules checked daily · pull to refresh":"Live status refreshes when over 15 minutes old")
                                 .font(.system(size:10))
                         }.foregroundStyle(Deck.muted).frame(maxWidth:.infinity).padding(.top,2)
                     } else {

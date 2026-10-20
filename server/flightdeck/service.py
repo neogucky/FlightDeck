@@ -1,6 +1,7 @@
 from datetime import datetime, date, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from uuid import uuid4
+import re
 from .connector import ConnectorError
 from .database import utcnow
 
@@ -49,6 +50,16 @@ def match_flight(rows, leg):
     return matches[0] if matches else None
 
 
+def flight_identity(value):
+    if not isinstance(value,str): return None
+    match=re.fullmatch(r'([A-Z]{3}|[A-Z0-9]{2})([0-9]{1,4})([A-Z]?)',re.sub(r'\s+','',value or '').upper())
+    return (match[1],int(match[2]),match[3]) if match else None
+
+
+def schedule_airport_code(row, side):
+    return row.get(side+'_icao') or row.get(side+'_iata') or row.get(side)
+
+
 class FlightService:
     def __init__(self,db,settings,connector=None,clock=utcnow):
         self.db,self.settings,self.connector,self.clock=db,settings,connector,clock
@@ -65,34 +76,95 @@ class FlightService:
         for t in trips:
             for leg in t['legs']:
                 leg['snapshot']=self.db.snapshot(leg['id'])
+                leg['issue']=self.db.refresh_issue(leg['id'])
         return trips
+
+    def issues(self):
+        return [issue for trip in self.db.trips() for leg in trip['legs'] if (issue:=self.db.refresh_issue(leg['id']))]
+
+    async def schedule_snapshot(self, leg, force):
+        now=self.clock();day=date.fromisoformat(leg['departure_date'])
+        if day+timedelta(days=2)>now.date()+timedelta(days=365):
+            raise ConnectorError('This flight is saved. Published schedules are available up to about a year ahead.','outside_schedule_window')
+        rows=await self.connector.schedules(leg['flight_number'],day,force=force)
+        identity=flight_identity(leg['flight_number'])
+        rows=[r for r in rows if any(flight_identity(r.get(k))==identity for k in ['ident','ident_iata','ident_icao'])]
+        if not rows:
+            raise ConnectorError('No published schedule was returned for this flight number and date. The flight is saved; check its number and departure date.','schedule_not_found')
+        codes={schedule_airport_code(r,'origin') for r in rows}
+        if None in codes or len(codes)>3:
+            raise ConnectorError('The schedule contains multiple possible routes and could not be matched safely.','ambiguous_flight')
+        airports={}
+        async def airport(code):
+            if code not in airports:
+                info=await self.connector.airport(code)
+                candidates=[a for a in [info]+(info.get('alternatives') or []) if isinstance(a,dict) and code in
+                            [a.get(k) for k in ['airport_code','code_icao','code_iata','code_lid']]]
+                if len(candidates)!=1:
+                    raise ConnectorError('The schedule airport could not be identified safely.','schedule_unresolved')
+                detail=dict(candidates[0],_flightdeck_fetched_at=info.get('_flightdeck_fetched_at',now.isoformat()))
+                detail['code']=detail.get('airport_code')
+                try: ZoneInfo(detail.get('timezone') or '')
+                except (ZoneInfoNotFoundError,ValueError,TypeError):
+                    raise ConnectorError('The airport timezone could not be verified. Local flight times are unavailable.','schedule_unresolved')
+                airports[code]=detail
+            return airports[code]
+        candidates=[]
+        for row in rows:
+            origin=await airport(schedule_airport_code(row,'origin'))
+            converted=dict(row,origin=origin)
+            if local_departure_day(converted)==day:
+                if leg.get('origin_iata') and origin.get('code_iata')!=leg['origin_iata']: continue
+                if leg.get('destination_iata') and row.get('destination_iata')!=leg['destination_iata']: continue
+                candidates.append((row,origin))
+        if len(candidates)!=1:
+            raise ConnectorError('The published schedule did not identify one unique flight on this departure date.','ambiguous_flight' if candidates else 'schedule_not_found')
+        row,origin=candidates[0]
+        destination=await airport(schedule_airport_code(row,'destination'))
+        current=normalize(dict(row,origin=origin,destination=destination,status='Schedule only',registration=None))
+        fetched=min(row.get('_flightdeck_fetched_at',now.isoformat()),origin['_flightdeck_fetched_at'],destination['_flightdeck_fetched_at'])
+        return {'fetched_at':fetched,'source':'schedule','flight':current,'inbound':None,
+                'inbound_note':'Published schedule only. Live status and the assigned incoming aircraft become available closer to departure.'}
 
     async def refresh_leg(self, leg, force):
         now=self.clock()
         snapshot=self.db.snapshot(leg['id'])
-        if snapshot and not force and (now-datetime.fromisoformat(snapshot['fetched_at'])).total_seconds()<900:
-            return
         day=date.fromisoformat(leg['departure_date'])
-        if day<now.date()-timedelta(days=9) or day>now.date()+timedelta(days=2):
-            # Personal-tier recent-flight endpoint only; never silently buy history/schedule endpoints.
-            raise ConnectorError('Saved. Live status is available close to departure; old flights remain in your history.', 'outside_live_window')
+        if day<now.date()-timedelta(days=9):
+            raise ConnectorError('This flight is saved in your history. Live details are available only for recent flights.', 'outside_live_window')
+        live=day<=now.date()+timedelta(days=2)
+        if snapshot and snapshot.get('source')=='schedule':
+            departure=snapshot['flight'].get('scheduled_departure')
+            if departure and datetime.fromisoformat(departure.replace('Z','+00:00'))>now+timedelta(hours=47): live=False
+        if snapshot and not force:
+            age=(now-datetime.fromisoformat(snapshot['fetched_at'])).total_seconds()
+            if snapshot.get('source')=='schedule':
+                if not live and age<86400: return True
+            elif age<900: return True
         if self.settings.mode == 'live' and self.connector is None:
             raise ConnectorError('Add your AeroAPI key in Settings to enable live flight information.','api_key_required')
-        if not self.db.claim_refresh(leg['id'],now):
-            return
+        cooldown=60 if force else 900 if live else 86400
+        previous_issue=self.db.refresh_issue(leg['id'])
+        if previous_issue and previous_issue['code']=='rate_limited': cooldown=60
+        if not self.db.claim_refresh(leg['id'],now,min_seconds=cooldown):
+            return False
         if self.settings.mode=='demo':
             from .demo import snapshot_for
             self.db.save_snapshot(leg['id'],snapshot_for(leg,now))
-            return
+            return True
+        if not live:
+            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,force))
+            return True
         start=max(datetime.combine(day-timedelta(days=1),time.min,timezone.utc),now-timedelta(days=9,hours=23))
         end=min(datetime.combine(day+timedelta(days=2),time.min,timezone.utc),now+timedelta(hours=47))
         rows=await self.connector.flights(leg['flight_number'],start=start.isoformat(),end=end.isoformat(),force=force)
         raw=match_flight(rows,leg)
         if not raw:
-            raise ConnectorError('No matching occurrence returned on the first API page. Check the flight number and departure date; no additional pages were purchased.', 'flight_not_found')
+            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,force))
+            return True
         current=normalize(raw)
         # Keep partial current-flight updates if the inbound call exhausts the budget or fails.
-        result={'fetched_at':raw.get('_flightdeck_fetched_at',now.isoformat()),'flight':current,'inbound':None,'inbound_note':None}
+        result={'fetched_at':raw.get('_flightdeck_fetched_at',now.isoformat()),'source':'live','flight':current,'inbound':None,'inbound_note':None}
         inbound_id=current.get('inbound_provider_id')
         if inbound_id:
             try:
@@ -114,9 +186,9 @@ class FlightService:
         else:
             result['inbound_note']='The incoming aircraft has not been identified yet.'
         self.db.save_snapshot(leg['id'],result)
+        return True
 
     async def refresh(self, trip_id=None, force=False):
-        issues=[]
         selected=[t for t in self.db.trips() if not trip_id or t['id']==trip_id]
         if trip_id and not selected:
             raise KeyError(trip_id)
@@ -126,10 +198,8 @@ class FlightService:
                     previous=self.db.snapshot(leg['id'])
                     if (previous and previous.get('flight',{}).get('actual_arrival')) or date.fromisoformat(leg['departure_date']) < self.clock().date()-timedelta(days=1):
                         continue
-                    if date.fromisoformat(leg['departure_date']) > self.clock().date()+timedelta(days=2):
-                        continue
                 try:
-                    await self.refresh_leg(leg,force)
+                    if await self.refresh_leg(leg,force): self.db.set_refresh_issue(leg['id'],None)
                 except ConnectorError as error:
-                    issues.append({'leg_id':leg['id'],'code':error.code,'message':error.message})
-        return issues
+                    self.db.set_refresh_issue(leg['id'],{'leg_id':leg['id'],'code':error.code,'message':error.message})
+        return self.issues()

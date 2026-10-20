@@ -115,6 +115,30 @@ final class FlightDeckUITests: XCTestCase {
         app.terminate();app.launch()
         XCTAssertTrue(app.buttons["connectServer"].waitForExistence(timeout:10))
     }
+    func testPublishedScheduleShowsRouteWithoutClaimingLiveStatus() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
+        let username = "schedule-"+UUID().uuidString.prefix(8).lowercased()
+        authenticate(app,username:username,register:true)
+        XCTAssertTrue(app.secureTextFields["providerAPIKey"].waitForExistence(timeout:10))
+        fill(app.secureTextFields["providerAPIKey"],"flightdeck-test-schedule-key-"+username,app)
+        app.swipeUp();app.buttons["saveAPIKey"].tap()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        app.buttons["addFlight"].tap();fill(app.textFields["flightNumber0"],"LX 1052",app)
+        app.buttons["saveTrip"].tap()
+        let trip = app.buttons["nextTrip"]
+        XCTAssertTrue(trip.waitForExistence(timeout:10))
+        XCTAssertTrue(trip.label.contains("ZRH to HAM, flight LX1052"))
+        XCTAssertTrue(trip.label.contains("Schedule only"))
+        XCTAssertFalse(trip.label.contains("On time"))
+        XCTAssertTrue(app.buttons["incoming-LX1052"].label.contains("Available closer to departure"))
+        capture("Published schedule overview",app)
+        trip.tap()
+        XCTAssertTrue(app.staticTexts["PLANNED AIRCRAFT TYPE"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["Airbus A220-300"].exists)
+        capture("Published schedule details",app)
+        app.navigationBars.buttons.firstMatch.tap()
+        app.tabBars.buttons["Settings"].tap();app.buttons["signOut"].tap()
+    }
     func testOverviewDescribesTheWholeTripAndBothIncomingAircraft() {
         let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
         let trip = app.buttons["nextTrip"]

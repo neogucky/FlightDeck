@@ -33,6 +33,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS account_usage(
                     month TEXT PRIMARY KEY, high_water_micro INTEGER NOT NULL, checked_at TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS refresh_attempts(leg_id TEXT PRIMARY KEY, attempted_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS refresh_issues(leg_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS provider_attempts(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL);
             """)
 
@@ -82,6 +83,7 @@ class Database:
                 for leg in json.loads(row[0])['legs']:
                     db.execute("DELETE FROM snapshots WHERE leg_id=?", (leg['id'],))
                     db.execute("DELETE FROM refresh_attempts WHERE leg_id=?", (leg['id'],))
+                    db.execute("DELETE FROM refresh_issues WHERE leg_id=?", (leg['id'],))
             db.execute("DELETE FROM trips WHERE id=?", (trip_id,))
 
     def snapshot(self, leg_id):
@@ -92,6 +94,18 @@ class Database:
     def save_snapshot(self, leg_id, snapshot):
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO snapshots VALUES (?,?,?)", (leg_id, snapshot['fetched_at'], json.dumps(snapshot)))
+
+    def refresh_issue(self, leg_id):
+        with self.connect() as db:
+            row=db.execute('SELECT payload FROM refresh_issues WHERE leg_id=?',(leg_id,)).fetchone()
+            return json.loads(row[0]) if row else None
+
+    def set_refresh_issue(self, leg_id, issue):
+        with self.connect() as db:
+            if issue:
+                db.execute('INSERT OR REPLACE INTO refresh_issues VALUES (?,?)',(leg_id,json.dumps(issue)))
+            else:
+                db.execute('DELETE FROM refresh_issues WHERE leg_id=?',(leg_id,))
 
     def cached(self, key, now, ttl=900):
         with self.connect() as db:
