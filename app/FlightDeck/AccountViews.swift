@@ -34,20 +34,17 @@ struct AccountAccessView: View {
                                 }.pickerStyle(.segmented).accessibilityIdentifier("accountMode")
                             }
                             VStack(alignment:.leading,spacing:18) {
-                                VStack(alignment:.leading,spacing:8) {
-                                    Text("USERNAME").eyebrow().foregroundStyle(Deck.muted)
+                                DeckField("USERNAME") {
                                     TextField("Your username",text:$username).textContentType(.username)
                                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                                         .focused($focused,equals:"username").accessibilityIdentifier("accountUsername")
-                                }
-                                Divider()
-                                VStack(alignment:.leading,spacing:8) {
-                                    Text("PASSWORD").eyebrow().foregroundStyle(Deck.muted)
+                                }.deckCard().onTapGesture { focused = "username" }
+                                DeckField("PASSWORD") {
                                     SecureField(registering ? "At least 12 characters":"Your password",text:$password)
                                         .textContentType(.password).textInputAutocapitalization(.never).autocorrectionDisabled()
                                         .focused($focused,equals:"password").accessibilityIdentifier("accountPassword")
-                                }
-                            }.deckCard()
+                                }.deckCard().onTapGesture { focused = "password" }
+                            }
                             if registering {
                                 Text("Choose a username with 3–32 letters, numbers, dots, underscores or hyphens, and a password with 12–128 characters. This account belongs to this server.")
                                     .font(.footnote).foregroundStyle(Deck.muted)
@@ -126,11 +123,10 @@ struct APIKeyForm: View {
                     Link("Open My AeroAPI ↗",destination:URL(string:"https://www.flightaware.com/aeroapi/portal/")!)
                         .font(.system(size:13,weight:.semibold)).foregroundStyle(Deck.ink)
                 }.deckCard()
-                VStack(alignment:.leading,spacing:10) {
-                    Text("AEROAPI KEY").eyebrow().foregroundStyle(Deck.muted)
+                DeckField("AEROAPI KEY") {
                     SecureField("Paste your API key",text:$key).textInputAutocapitalization(.never).autocorrectionDisabled()
                         .focused($focused).accessibilityIdentifier("providerAPIKey")
-                }.deckCard()
+                }.deckCard().onTapGesture { focused = true }
                 Label("Your key is encrypted on \(URL(string:store.address)?.host ?? "your server") and is never sent back to the app. Use a server operator you trust.",systemImage:"lock.shield")
                     .font(.footnote).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
                 Text("API requests use your own FlightAware account. FlightDeck keeps a conservative monthly safety budget; replacing a key does not reset usage.")

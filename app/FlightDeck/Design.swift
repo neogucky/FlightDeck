@@ -17,6 +17,35 @@ extension View {
     func eyebrow() -> some View { self.font(.system(size:10,weight:.bold,design:.monospaced)).tracking(1.8) }
 }
 
+struct DeckField<Content: View>: View {
+    let title: String
+    let content: Content
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title;self.content = content()
+    }
+    var body: some View {
+        VStack(alignment:.leading,spacing:10) {
+            Text(title).eyebrow().foregroundStyle(Deck.muted)
+            content.textFieldStyle(.plain).frame(minHeight:28,alignment:.leading)
+        }.contentShape(Rectangle())
+    }
+}
+
+struct PlaneActivityIndicator: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        TimelineView(.animation(minimumInterval:1.0/30,paused:reduceMotion)) { context in
+            let phase = reduceMotion ? 0.5:context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy:1.6)/1.6
+            ZStack(alignment:.leading) {
+                Capsule().fill(.white.opacity(0.25)).frame(width:38,height:2).offset(y:5)
+                Image(systemName:"airplane").font(.system(size:15,weight:.semibold))
+                    .rotationEffect(.degrees(-12)).offset(x:phase*25,y:3-phase*7)
+                    .opacity(reduceMotion ? 1:min(1,min(phase*7,(1-phase)*7)))
+            }.foregroundStyle(.white).frame(width:44,height:22)
+        }.accessibilityHidden(true)
+    }
+}
+
 struct RouteLine: View {
     var color: Color = Deck.muted
     var body: some View {

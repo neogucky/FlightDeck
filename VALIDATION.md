@@ -11,7 +11,7 @@ Checked on 20 October 2026.
 - **Actual Swift client integration passed.** Discovery, register/login, write-only key setup, two connected flights entered with spaces and no airports, derived route/aircraft decoding, independent account usage/history, empty second-user journal, deletion and session revocation were exercised against the Python HTTP fixture. Swift encoding checks cover case, regular spaces, tabs, newlines and nonbreaking spaces, and ensure airport fields are absent from new requests. Trip status aggregation checks also pass.
 - **Visual review completed.** The new start page and simplified single/connected-flight forms, account login, API-key guide, connected-account Settings, fractional-cent usage breakdown and monthly history were inspected in the native simulator. Saved screenshots in `previews/` use fake accounts and provider data. The final build was installed on the original FlightDeck Review simulator without uninstalling it; its saved account and trip reopened successfully. The live localhost server was restarted against the same database and encryption key.
 
-All automated provider checks use deterministic HTTP mocks and fake credentials. The onboarding checks run on a separate simulator from the user's real-key test, preserving that device's session and account storage. Windows service installation, the real HTTPS endpoint/certificate and physical-device signing still require deployment verification. The updated Windows installer and account/key backup instructions are prepared; no Windows server or Apple account resources were changed. Push remains deferred.
+All automated provider checks use deterministic HTTP mocks and fake credentials. The onboarding checks run on a separate simulator from the user's real-key test, preserving that device's session and account storage. Windows service installation, the real HTTPS endpoint/certificate and physical-device installation still require deployment verification. The updated Windows installer and account/key backup instructions are prepared. Push remains deferred.
 
 The server suite emits the existing Starlette TestClient deprecation warning; all assertions pass. This is development validation, not an independent security audit. This version replaces the shared-token prototype; see `server/SECURITY.md` before upgrading any existing live database.
 
@@ -34,3 +34,25 @@ The original recent-flight-only implementation left a flight three days ahead un
 - Native settings, suggestion-banner and connected-trip review screenshots were visually inspected and saved under `previews/`, using synthetic data only.
 
 Physical-device permission prompts and real Google Calendar sync will be checked after server deployment, as requested. No real calendar was accessed, and this feature’s automated tests did not make paid provider requests.
+
+## Reverse-proxy URL support
+
+- Foundation checks pass for root and prefixed servers, explicit ports, trailing slashes, nested prefixes, scheme-less HTTPS addresses, IPv6 and preserved refresh query parameters. Unsafe dot segments, encoded path escapes, embedded credentials, fragments, invalid ports and remote plaintext HTTP are rejected.
+- The actual Swift client passes discovery, registration/login, write-only key setup, connected-flight creation, usage/history, user isolation, deletion and session revocation against the mock fixture at both its root and `/flights/` URLs. All authenticated calls keep the configured prefix.
+- The native account UI test passes through `/flights/` (124.75 seconds), including registration, key setup, usage, adding a flight, restarting with the saved session, signing out, an isolated second account and signing back in. The saved server address retains the prefix across these transitions.
+- A signed ARM64 iPhone build succeeds using the installed personal development identity and passes strict code-signature verification. Physical-device installation still requires a provisioning profile that includes the target phone.
+- The production Python routes remain rooted at `/v1/`. A reverse proxy must strip `/flights` before forwarding, preserve query strings and authorization, and avoid redirects. HTTPS and system certificate validation remain required for remote servers.
+
+## Server URL entry
+
+- The connection page starts with an empty labelled input card, a short system-grey **Server URL** placeholder, an explicit accessibility label and the URL keyboard. It does not insert a sample URL or prefill the field when a new connection page opens.
+- Two targeted native UI checks pass (52.61 seconds). They verify the empty field and disabled connection button, tapping to open the keyboard, entering an HTTPS address with a port and `/flights` prefix, clearing back to the placeholder, empty state after restart, and the existing explicit demo/start-page navigation.
+- The updated ARM64 build is signed for the approved development team and passes strict signature verification with a profile containing the target iPhone.
+
+## Consistent inputs and calendar import feedback
+
+- Server URL, username, password, API key and manual flight-number entry use the same labelled field component. Standalone fields use the API-key form's rounded card treatment; flight numbers keep their larger monospaced type inside the existing flight card. Tapping a field's card or label focuses its input.
+- Calendar suggestions retain one **Dismiss** action per suggested journey. Redundant per-flight × controls are removed; remembered refusals and reset behavior are unchanged.
+- A row import immediately becomes **Adding flight…** or **Adding trip…** with a moving plane. Bulk import has the same feedback and keeps its button visible until completion. Competing import/dismiss actions and sheet dismissal are disabled, and errors restore the controls for retry. The animation respects Reduce Motion.
+- Four targeted native flows pass across the validation runs: account/key/usage/flight entry and saved sessions (130.56 s), editable empty server input (27.59 s), bulk import feedback and a clean rescan (25.01 s), and single import feedback, remembered dismissal, restart, manual scan and reset (69.56 s). A slow operation is simulated only in the synthetic calendar test fixture; real imports have no artificial delay.
+- The updated app is signed, installed and launched on the physical iPhone as an in-place update. All automated provider/calendar checks use mocks; existing device accounts and real calendars were not reset or inspected.

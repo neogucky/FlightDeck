@@ -46,6 +46,7 @@ You can also find flights in calendars already synced with iOS Calendar:
 - Select the calendars to search in **Settings → Calendar import**.
 - Enable **Automatically suggest flights**, or use **Search calendars now** whenever you want.
 - Review suggestions before adding them. Dismissed flights stay dismissed for that account on that device, including after restarting the app.
+- Import buttons show an animated plane while adding flights and prevent duplicate taps until the request finishes.
 - Calendar entries such as `Flight to Frankfurt (LH 1189)` supply the flight number and date. Flights departing at or after the previous arrival and less than 12 hours later are suggested as a connected trip.
 
 <table>
@@ -74,6 +75,8 @@ Calendar scanning happens on the phone and makes no AeroAPI requests. Only fligh
 | **Calendar import, optional** | Calendar permission and calendars synced with iOS Calendar. |
 
 The data flow is **iPhone app → FlightDeck server → FlightAware AeroAPI**. The server stores your trips, protects the provider key, caches flight data and accounts for API usage. Each user registers on their chosen server and supplies their own provider key.
+
+Server URLs can include a port and a reverse-proxy path, for example `https://server.example.com:8080/flights`. FlightDeck keeps that prefix on every request, such as `/flights/v1/server` and `/flights/v1/auth/login`. If you omit the scheme, the app adds `https://`.
 
 ## Getting started
 
@@ -106,12 +109,12 @@ The server listens at `127.0.0.1:8787`. For a physical phone, place it behind yo
     <th>Bring your own API key</th>
   </tr>
   <tr>
-    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with a server address, Connect to server button and secondary Explore the demo option"></a></td>
+    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with an empty Server URL input in a labelled card, Connect to server button and secondary Explore the demo option"></a></td>
     <td><a href="previews/api-key-setup.png"><img src="previews/api-key-setup.png" width="250" alt="The AeroAPI setup guide with account instructions, provider links and a secure key-entry field"></a></td>
   </tr>
 </table>
 
-To try the interface first, choose **Explore the demo** on the start page. This uses local sample flights and makes no provider requests. The localhost address shown in the screenshot is a test-server example; enter your own server's address.
+To try the interface first, choose **Explore the demo** on the start page. This uses local sample flights and makes no provider requests. The server field starts empty; enter your own server's address to connect.
 
 ## Credentials and API costs
 

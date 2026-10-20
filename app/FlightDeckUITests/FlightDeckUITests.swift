@@ -15,8 +15,15 @@ final class FlightDeckUITests: XCTestCase {
         field.typeText(text)
         if app.buttons["Done"].exists { app.buttons["Done"].tap() }
     }
-    private func authenticate(_ app: XCUIApplication, username: String, register: Bool) {
-        fill(app.textFields["serverAddress"],"http://localhost:18787",app)
+    private func authenticate(_ app: XCUIApplication, username: String, register: Bool, address: String = "http://localhost:18787") {
+        let field = app.textFields["serverAddress"]
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        let slashes = CharacterSet(charactersIn:"/")
+        // Reuse the saved canonical URL after sign-out instead of tapping into its middle.
+        if (field.value as? String)?.trimmingCharacters(in:slashes) != address.trimmingCharacters(in:slashes) {
+            fill(field,address,app)
+        }
+        XCTAssertEqual((field.value as? String)?.trimmingCharacters(in:slashes),address.trimmingCharacters(in:slashes))
         app.buttons["connectServer"].tap()
         XCTAssertTrue(app.textFields["accountUsername"].waitForExistence(timeout:10))
         capture("Account sign in",app)
@@ -31,7 +38,8 @@ final class FlightDeckUITests: XCTestCase {
     func testAccountOnboardingSessionAndUsageIsolation() {
         let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
         let username = "ui-"+UUID().uuidString.prefix(10).lowercased()
-        authenticate(app,username:username,register:true)
+        let address = "http://localhost:18787/flights/"
+        authenticate(app,username:username,register:true,address:address)
         XCTAssertTrue(app.secureTextFields["providerAPIKey"].waitForExistence(timeout:10))
         capture("API key setup",app)
         fill(app.secureTextFields["providerAPIKey"],"flightdeck-test-ui-key-"+username,app)
@@ -62,14 +70,14 @@ final class FlightDeckUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["signedInUsername"].label,username)
         app.buttons["signOut"].tap()
         XCTAssertTrue(app.textFields["serverAddress"].waitForExistence(timeout:10))
-        authenticate(app,username:username+"-b",register:true)
+        authenticate(app,username:username+"-b",register:true,address:address)
         XCTAssertTrue(app.buttons["Set up later"].waitForExistence(timeout:10));app.buttons["Set up later"].tap()
         app.tabBars.buttons["Trips"].tap()
         XCTAssertTrue(app.staticTexts["Where to next?"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["nextTrip"].exists)
         app.tabBars.buttons["Settings"].tap();app.buttons["signOut"].tap()
         XCTAssertTrue(app.textFields["serverAddress"].waitForExistence(timeout:10))
-        authenticate(app,username:username,register:false)
+        authenticate(app,username:username,register:false,address:address)
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
         app.tabBars.buttons["Settings"].tap()
         XCTAssertTrue(app.staticTexts["signedInUsername"].waitForExistence(timeout:10))
@@ -115,9 +123,32 @@ final class FlightDeckUITests: XCTestCase {
         app.terminate();app.launch()
         XCTAssertTrue(app.buttons["connectServer"].waitForExistence(timeout:10))
     }
+    func testServerURLFieldIsEmptyEditableAndUsesURLKeyboard() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
+        let field = app.textFields["serverAddress"]
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        XCTAssertEqual(field.placeholderValue,"Server URL")
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+        XCTAssertFalse(app.buttons["connectServer"].isEnabled)
+        capture("Empty server URL field",app)
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout:5))
+        let address = "https://192.0.2.10:8080/flights"
+        field.typeText(address)
+        XCTAssertEqual(field.value as? String,address)
+        XCTAssertTrue(app.buttons["connectServer"].isEnabled)
+        capture("Editable server URL with URL keyboard",app)
+        field.typeText(String(repeating:XCUIKeyboardKey.delete.rawValue,count:address.count))
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+        XCTAssertFalse(app.buttons["connectServer"].isEnabled)
+        if app.buttons["Done"].exists { app.buttons["Done"].tap() }
+        app.terminate();app.launch()
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+    }
     func testCalendarSuggestionsDismissalImportAndManualSearchPersist() {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset"];app.launch()
+        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset","--uitesting-calendar-loading"];app.launch()
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
         app.tabBars.buttons["Settings"].tap()
         let settings = app.buttons["calendarImportSettings"]
@@ -134,14 +165,20 @@ final class FlightDeckUITests: XCTestCase {
         app.buttons["reviewCalendarSuggestions"].tap()
         XCTAssertTrue(app.staticTexts["2 CONNECTED FLIGHTS"].waitForExistence(timeout:5))
         capture("Review calendar connections",app)
-        let declined = app.buttons["dismissCalendar-LH1189"]
+        XCTAssertFalse(app.buttons["dismissCalendar-LH2055"].exists)
+        let declined = app.buttons["dismissJourney-LH1189"]
         for _ in 0..<4 where !declined.isHittable { app.swipeUp() }
         XCTAssertTrue(declined.isHittable);declined.tap()
         let add = app.buttons["addCalendarJourney-LH2055"]
         for _ in 0..<4 where !add.isHittable { app.swipeDown() }
         add.tap()
+        XCTAssertTrue(add.label.contains("Adding trip"))
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertFalse(app.buttons["dismissJourney-LH2055"].isEnabled)
+        capture("Calendar import in progress",app)
+        XCTAssertTrue(add.waitForNonExistence(timeout:10))
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
-        XCTAssertFalse(app.buttons["reviewCalendarSuggestions"].exists)
+        XCTAssertTrue(app.buttons["reviewCalendarSuggestions"].waitForNonExistence(timeout:10))
         app.terminate()
         app.launchArguments = ["--uitesting-preserve","--uitesting-calendar"];app.launch()
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
@@ -161,7 +198,30 @@ final class FlightDeckUITests: XCTestCase {
         search.tap()
         XCTAssertTrue(app.staticTexts["LH1189"].waitForExistence(timeout:10))
         XCTAssertFalse(app.staticTexts["LH2055"].exists)
-        app.buttons["dismissCalendar-LH1189"].tap()
+        app.buttons["dismissJourney-LH1189"].tap()
+        app.buttons["Done"].tap()
+    }
+    func testCalendarBulkImportShowsProgressAndDisablesActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset","--uitesting-calendar-loading"];app.launch()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10))
+        app.tabBars.buttons["Settings"].tap()
+        let settings = app.buttons["calendarImportSettings"]
+        for _ in 0..<3 where !settings.isHittable { app.swipeUp() }
+        settings.tap()
+        XCTAssertTrue(app.switches["calendar-fixture"].waitForExistence(timeout:10))
+        app.switches["calendar-fixture"].tap()
+        app.buttons["searchCalendarFlights"].tap()
+        let add = app.buttons["addAllCalendarFlights"]
+        XCTAssertTrue(add.waitForExistence(timeout:10))
+        add.tap()
+        XCTAssertTrue(add.label.contains("Adding flights"))
+        XCTAssertFalse(add.isEnabled)
+        XCTAssertFalse(app.buttons["dismissJourney-LH2055"].isEnabled)
+        capture("Bulk calendar import in progress",app)
+        XCTAssertTrue(add.waitForNonExistence(timeout:10))
+        app.buttons["searchCalendarFlights"].tap()
+        XCTAssertTrue(app.staticTexts["noCalendarFlightSuggestions"].waitForExistence(timeout:10))
         app.buttons["Done"].tap()
     }
     func testPublishedScheduleShowsRouteWithoutClaimingLiveStatus() {

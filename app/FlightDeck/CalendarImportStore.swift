@@ -123,7 +123,11 @@ final class CalendarImportStore {
         guard !isImporting,let target = profile,target == store.calendarProfileID else { return false }
         isImporting = true;error = nil
         defer { if profile == target { isImporting = false } }
+        await Task.yield()
         do {
+            if fixture,ProcessInfo.processInfo.arguments.contains("--uitesting-calendar-loading") {
+                try await Task.sleep(for:.seconds(2))
+            }
             for journey in journeys {
                 guard profile == target,store.calendarProfileID == target else { return false }
                 try await store.add(journey.payload)

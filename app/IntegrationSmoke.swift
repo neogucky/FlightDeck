@@ -2,13 +2,18 @@ import Foundation
 
 @main struct IntegrationSmoke {
     static func main() async throws {
-        let publicAPI = try APIClient(address:"http://localhost:18787")
+        for address in ["http://localhost:18787", "http://localhost:18787/flights/"] {
+            try await exercise(address:address)
+        }
+    }
+    static func exercise(address: String) async throws {
+        let publicAPI = try APIClient(address:address)
         let info = try await publicAPI.send("/v1/server",as:ServerInfo.self)
         precondition(info.protocolVersion == 2)
         let username = "smoke-"+UUID().uuidString.prefix(12).lowercased()
         let credentials = try JSONCoding.encoder.encode(LoginInput(username:username,password:"Native test-only password"))
         let auth = try await publicAPI.send("/v1/auth/register",method:"POST",body:credentials,as:AuthSession.self)
-        let api = try APIClient(address:"http://localhost:18787",token:auth.sessionToken)
+        let api = try APIClient(address:address,token:auth.sessionToken)
         let original = try await api.request("/v1/state")
         precondition(original.account?.id == auth.account.id && original.account?.hasApiKey == false)
         let configured = try await api.request("/v1/account/api-key",method:"PUT",body:JSONCoding.encoder.encode(KeyInput(apiKey:"flightdeck-test-native-key-"+username)))
@@ -23,12 +28,12 @@ import Foundation
         let report = try await api.send("/v1/usage",as:UsageReport.self)
         precondition(report.usage.reservedUsd == 0.02 && report.history.first?.requestCount == 2)
         let loggedIn = try await publicAPI.send("/v1/auth/login",method:"POST",body:credentials,as:AuthSession.self)
-        let restored = try APIClient(address:"http://localhost:18787",token:loggedIn.sessionToken)
+        let restored = try APIClient(address:address,token:loggedIn.sessionToken)
         let restoredState = try await restored.request("/v1/state")
         precondition(restoredState.trips.first?.id == trip.id)
         let secondCredentials = try JSONCoding.encoder.encode(LoginInput(username:username+"-b",password:"Another native test password"))
         let other = try await publicAPI.send("/v1/auth/register",method:"POST",body:secondCredentials,as:AuthSession.self)
-        let otherAPI = try APIClient(address:"http://localhost:18787",token:other.sessionToken)
+        let otherAPI = try APIClient(address:address,token:other.sessionToken)
         let otherState = try await otherAPI.request("/v1/state")
         precondition(otherState.trips.isEmpty && otherState.usage?.requestCount == 0)
         let deleted = try await api.request("/v1/trips/\(trip.id)",method:"DELETE")
@@ -37,6 +42,6 @@ import Foundation
         do { _ = try await restored.request("/v1/state");fatalError("Revoked session accepted") }
         catch ConnectionError.unauthorized { }
         try await otherAPI.perform("/v1/auth/logout")
-        print("Native API smoke passed: discovery, registration/login, write-only key setup, flight data, isolated usage/history, account isolation and session revocation.")
+        print("Native API smoke passed at \(address): discovery, registration/login, write-only key setup, flight data, isolated usage/history, account isolation and session revocation.")
     }
 }
