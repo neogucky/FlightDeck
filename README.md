@@ -108,12 +108,12 @@ The server listens at `127.0.0.1:8787`. For a physical phone, place it behind yo
     <th>Bring your own API key</th>
   </tr>
   <tr>
-    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with a server address, Connect to server button and secondary Explore the demo option"></a></td>
+    <td><a href="previews/start.png"><img src="previews/start.png" width="250" alt="The start page with an empty, outlined Server URL input, Connect to server button and secondary Explore the demo option"></a></td>
     <td><a href="previews/api-key-setup.png"><img src="previews/api-key-setup.png" width="250" alt="The AeroAPI setup guide with account instructions, provider links and a secure key-entry field"></a></td>
   </tr>
 </table>
 
-To try the interface first, choose **Explore the demo** on the start page. This uses local sample flights and makes no provider requests. The localhost address shown in the screenshot is a test-server example; enter your own server's address.
+To try the interface first, choose **Explore the demo** on the start page. This uses local sample flights and makes no provider requests. The server field starts empty; enter your own server's address to connect.
 
 ## Credentials and API costs
 

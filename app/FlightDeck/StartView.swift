@@ -46,10 +46,13 @@ struct ServerConnectionForm: View {
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment:.leading,spacing:18) {
-            Text("YOUR SERVER").eyebrow().foregroundStyle(Deck.muted)
-            TextField("https://server.example.com:8080/flights",text:$address).textContentType(.URL).keyboardType(.URL)
+            Text("SERVER URL").eyebrow().foregroundStyle(Deck.muted)
+            TextField("Server URL",text:$address,prompt:Text("Server URL").foregroundStyle(Color(uiColor:.placeholderText)))
+                .textFieldStyle(.roundedBorder).font(.body).frame(minHeight:44)
+                .textContentType(.URL).keyboardType(.URL)
                 .focused($focused).textInputAutocapitalization(.never).autocorrectionDisabled()
-                .accessibilityIdentifier("serverAddress").submitLabel(.go).onSubmit { connect() }
+                .accessibilityLabel("Server URL").accessibilityIdentifier("serverAddress")
+                .submitLabel(.go).onSubmit { connect() }
             Button { connect() } label: {
                 HStack {
                     if connecting { ProgressView().tint(.white) }
@@ -62,7 +65,6 @@ struct ServerConnectionForm: View {
             Text("Connect to your own server or one you trust, then sign in or create an account. Ports and paths such as /flights are supported. HTTPS is added if omitted; a private certificate must be trusted on your phone.")
                 .font(.system(size:11)).foregroundStyle(Deck.muted).fixedSize(horizontal:false,vertical:true)
         }.deckCard()
-            .onAppear { address = store.address }
             .sheet(isPresented:$showingLogin,onDismiss:{ store.enterAccount() }) {
                 if let server { AccountAccessView(address:address,server:server) }
             }

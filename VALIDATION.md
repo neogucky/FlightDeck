@@ -42,3 +42,9 @@ Physical-device permission prompts and real Google Calendar sync will be checked
 - The native account UI test passes through `/flights/` (124.75 seconds), including registration, key setup, usage, adding a flight, restarting with the saved session, signing out, an isolated second account and signing back in. The saved server address retains the prefix across these transitions.
 - A signed ARM64 iPhone build succeeds using the installed personal development identity and passes strict code-signature verification. Physical-device installation still requires a provisioning profile that includes the target phone.
 - The production Python routes remain rooted at `/v1/`. A reverse proxy must strip `/flights` before forwarding, preserve query strings and authorization, and avoid redirects. HTTPS and system certificate validation remain required for remote servers.
+
+## Server URL entry
+
+- The connection page starts with an empty native rounded-border text field, a short system-grey **Server URL** placeholder, an explicit accessibility label and the URL keyboard. It does not insert a sample URL or prefill the field when a new connection page opens.
+- Two targeted native UI checks pass (52.61 seconds). They verify the empty field and disabled connection button, tapping to open the keyboard, entering an HTTPS address with a port and `/flights` prefix, clearing back to the placeholder, empty state after restart, and the existing explicit demo/start-page navigation.
+- The updated ARM64 build is signed for the approved development team and passes strict signature verification with a profile containing the target iPhone.

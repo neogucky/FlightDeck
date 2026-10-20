@@ -123,6 +123,29 @@ final class FlightDeckUITests: XCTestCase {
         app.terminate();app.launch()
         XCTAssertTrue(app.buttons["connectServer"].waitForExistence(timeout:10))
     }
+    func testServerURLFieldIsEmptyEditableAndUsesURLKeyboard() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting-start"];app.launch()
+        let field = app.textFields["serverAddress"]
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        XCTAssertEqual(field.placeholderValue,"Server URL")
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+        XCTAssertFalse(app.buttons["connectServer"].isEnabled)
+        capture("Empty server URL field",app)
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout:5))
+        let address = "https://192.0.2.10:8080/flights"
+        field.typeText(address)
+        XCTAssertEqual(field.value as? String,address)
+        XCTAssertTrue(app.buttons["connectServer"].isEnabled)
+        capture("Editable server URL with URL keyboard",app)
+        field.typeText(String(repeating:XCUIKeyboardKey.delete.rawValue,count:address.count))
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+        XCTAssertFalse(app.buttons["connectServer"].isEnabled)
+        if app.buttons["Done"].exists { app.buttons["Done"].tap() }
+        app.terminate();app.launch()
+        XCTAssertTrue(field.waitForExistence(timeout:10))
+        XCTAssertTrue(["", "Server URL"].contains(field.value as? String ?? ""))
+    }
     func testCalendarSuggestionsDismissalImportAndManualSearchPersist() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting","--uitesting-calendar","--uitesting-calendar-reset"];app.launch()
