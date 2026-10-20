@@ -9,7 +9,7 @@
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key><true/>
-    <key>UILaunchScreen</key><dict/>
+    <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchPaper</string></dict>
     <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to your personal FlightDeck server on your local network.</string>

@@ -202,6 +202,14 @@ swiftc app/FlightDeck/Models.swift app/FlightDeck/CalendarFlightDetection.swift 
 
 The native calendar UI test uses `--uitesting-calendar` on a separate test simulator; it never reads real calendar events. The initial `--uitesting-calendar-reset` flag resets only fixture preferences. The test verifies automatic discovery, a two-leg connection, remembered rejection after restart, deduplicated imports, manual rescan and explicit reset of dismissals.
 
+## Launch animation and artwork
+
+The native launch scene runs once per cold app launch. It never delays flight refreshes or calendar scanning, and returning from the background does not replay it. **Skip** opens the app immediately; iOS **Reduce Motion** uses a brief logo fade. Backgrounding during launch dismisses the animation. The navy sheet resolves to the measured upcoming-trip or empty-state card; the initial server connection screen uses a fade instead.
+
+The empty Trips screen offers **Add a flight** and **Search calendar**. The latter opens calendar setup until permission and a calendar selection are available, then searches and presents suggestions. History remains in its own tab.
+
+To regenerate the app icon and Departure wordmark on macOS, run `swift app/make_icon.swift` from the repository root. Source artwork and the font license live in `app/FlightDeck/Brand/`. Launch UI tests use only synthetic trips in the test simulator. `--uitesting-launch` enables the animation during tests, `--uitesting-empty` supplies an empty trip list, and the debug-only `--uitesting-launch-frame=<seconds>` freezes a frame for visual inspection. Normal UI tests skip the animation.
+
 ## Later additions
 
 User-configurable budget limits, email-based recovery and push delivery are not configured yet. A future scheduled worker and APNs delivery must use the authenticated owner's provider key and the same durable budget gate.

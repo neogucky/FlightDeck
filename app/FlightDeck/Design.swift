@@ -2,6 +2,7 @@ import SwiftUI
 
 enum Deck {
     static let ink = Color(red:0.10,green:0.16,blue:0.23)
+    static let navyGradient = LinearGradient(colors:[ink,Color(red:0.16,green:0.27,blue:0.34)],startPoint:.topLeading,endPoint:.bottomTrailing)
     static let paper = Color(red:0.96,green:0.96,blue:0.94)
     static let muted = Color(red:0.45,green:0.49,blue:0.52)
     static let orange = Color(red:0.94,green:0.34,blue:0.16)

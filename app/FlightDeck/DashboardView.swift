@@ -5,6 +5,7 @@ struct DashboardView: View {
     @Environment(CalendarImportStore.self) private var calendar
     @State private var adding = false
     @State private var calendarSuggestions = false
+    @State private var calendarSetup = false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -44,7 +45,7 @@ struct DashboardView: View {
                         Label(error,systemImage:"wifi.exclamationmark").font(.footnote).foregroundStyle(Deck.orange).deckCard(padding:14)
                     }
                     if let next = store.upcoming.first {
-                        NavigationLink(value:next.id) { JourneyHero(trip:next) }.buttonStyle(.plain).accessibilityIdentifier("nextTrip")
+                        NavigationLink(value:next.id) { JourneyHero(trip:next).launchCard() }.buttonStyle(.plain).accessibilityIdentifier("nextTrip")
                         if let issue = next.legs.compactMap(\.issue).first ?? store.issues.first(where:{ issue in next.legs.contains(where:{ $0.id == issue.legId }) }) {
                             Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.orange)
                                 .accessibilityIdentifier("flightLookupIssue")
@@ -74,7 +75,20 @@ struct DashboardView: View {
                                 .font(.system(size:10))
                         }.foregroundStyle(Deck.muted).frame(maxWidth:.infinity).padding(.top,2)
                     } else {
-                        EmptyFlights(history:false) { adding = true }
+                        EmptyUpcomingCard { adding = true }
+                        Button {
+                            if calendar.canSearch {
+                                Task { await calendar.scan(trips:store.trips);calendarSuggestions = true }
+                            } else { calendarSetup = true }
+                        } label: {
+                            HStack(spacing:9) {
+                                if calendar.isScanning { ProgressView().controlSize(.small) }
+                                Label(calendar.isScanning ? "Searching…":"Search calendar",systemImage:"calendar")
+                            }.font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity,minHeight:44)
+                        }.buttonStyle(.plain).foregroundStyle(Deck.ink)
+                            .disabled(calendar.isScanning || calendar.isImporting).accessibilityIdentifier("emptySearchCalendar")
+                        Text(store.history.isEmpty ? "Your completed flights will appear in History.":"Your past flights remain in History.")
+                            .font(.footnote).foregroundStyle(Deck.muted).multilineTextAlignment(.center).frame(maxWidth:.infinity)
                     }
                     Text("ALL FLIGHT TIMES ARE LOCAL TO EACH AIRPORT").font(.system(size:8,weight:.medium,design:.monospaced))
                         .tracking(0.8).foregroundStyle(Deck.muted.opacity(0.7)).frame(maxWidth:.infinity).padding(.bottom,8)
@@ -84,6 +98,11 @@ struct DashboardView: View {
                 .navigationDestination(for:String.self) { TripDetailView(tripID:$0) }
                 .sheet(isPresented:$adding) { AddTripView() }
                 .sheet(isPresented:$calendarSuggestions) { CalendarSuggestionsView() }
+                .sheet(isPresented:$calendarSetup) {
+                    NavigationStack {
+                        CalendarSettingsView().toolbar { ToolbarItem(placement:.confirmationAction) { Button("Done") { calendarSetup = false } } }
+                    }
+                }
         }
     }
     private func stat(_ value: String, _ title: String) -> some View {

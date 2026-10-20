@@ -36,6 +36,15 @@ A native iPhone flight companion for frequent travellers. Keep your upcoming fli
 - **Refresh without starting over.** Live information refreshes when more than 15 minutes old while the app is active. Pull down to request an update; server caching and budget controls still apply.
 - **Build a flight journal.** The History tab keeps flights you have added. Saved itinerary numbers and dates remain; provider-derived details expire after 29 days.
 - **Keep your account connected.** Sign in once and keep the session in the iPhone Keychain. Trips, provider credentials, caches and usage are separated by account.
+- **A quiet takeoff.** A DC-3 pulls the navy launch screen into view, then the Departure logo settles into your next-trip card. With no upcoming flights it lands on an empty-state card with add and calendar actions. The animation plays on cold launch, has a Skip button, respects Reduce Motion, and uses no audio. The matching icon shares the same DC-3 and departure trail.
+
+<table>
+  <tr><th>Departure</th><th>Ready for your next trip</th></tr>
+  <tr>
+    <td><a href="previews/departure-launch.png"><img src="previews/departure-launch.png" width="250" alt="The Departure logo with a climbing DC-3 on the dark navy launch screen"></a></td>
+    <td><a href="previews/empty-overview.png"><img src="previews/empty-overview.png" width="250" alt="No upcoming flights, with Add a flight and Search calendar actions and the History tab available"></a></td>
+  </tr>
+</table>
 
 ## Add flights with less typing
 

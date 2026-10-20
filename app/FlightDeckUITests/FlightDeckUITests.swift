@@ -2,6 +2,42 @@ import XCTest
 
 final class FlightDeckUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+    func testColdLaunchCompletesAndDoesNotReplayOnTabChanges() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting","--uitesting-launch"];app.launch()
+        XCTAssertTrue(app.buttons["nextTrip"].waitForExistence(timeout:12))
+        XCTAssertTrue(app.buttons["skipLaunch"].waitForNonExistence(timeout:12))
+        capture("Departure landed on upcoming trip",app)
+        app.tabBars.buttons["History"].tap();app.tabBars.buttons["Trips"].tap()
+        XCTAssertTrue(app.buttons["nextTrip"].exists);XCTAssertFalse(app.buttons["skipLaunch"].exists)
+    }
+    func testLaunchCanBeSkippedAndEmptyStateActionsWork() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting","--uitesting-empty","--uitesting-launch","--uitesting-launch-frame=6.75"]
+        app.launch()
+        XCTAssertTrue(app.buttons["skipLaunch"].waitForExistence(timeout:5))
+        capture("Blanket becoming empty-state card",app)
+        app.buttons["skipLaunch"].tap()
+        XCTAssertTrue(app.buttons["emptyAddFlight"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.buttons["nextTrip"].exists)
+        capture("No upcoming flights",app)
+        app.buttons["emptyAddFlight"].tap()
+        XCTAssertTrue(app.textFields["flightNumber0"].waitForExistence(timeout:5))
+        app.buttons["Cancel"].tap()
+        app.buttons["emptySearchCalendar"].tap()
+        XCTAssertTrue(app.navigationBars["Calendar import"].waitForExistence(timeout:5))
+        capture("Empty-state calendar setup",app)
+        app.buttons["Done"].tap()
+        app.tabBars.buttons["History"].tap()
+        XCTAssertTrue(app.staticTexts["Past adventures"].waitForExistence(timeout:5))
+    }
+    func testReducedMotionLaunchRevealsConnectionPage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting-start","--uitesting-launch","--uitesting-reduce-motion"];app.launch()
+        XCTAssertTrue(app.buttons["connectServer"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.buttons["skipLaunch"].waitForNonExistence(timeout:5))
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        capture("Departure connection page",app)
+    }
     private func capture(_ name: String, _ app: XCUIApplication) {
         let a = XCTAttachment(screenshot:app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
@@ -73,7 +109,7 @@ final class FlightDeckUITests: XCTestCase {
         authenticate(app,username:username+"-b",register:true,address:address)
         XCTAssertTrue(app.buttons["Set up later"].waitForExistence(timeout:10));app.buttons["Set up later"].tap()
         app.tabBars.buttons["Trips"].tap()
-        XCTAssertTrue(app.staticTexts["Where to next?"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["emptyAddFlight"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["nextTrip"].exists)
         app.tabBars.buttons["Settings"].tap();app.buttons["signOut"].tap()
         XCTAssertTrue(app.textFields["serverAddress"].waitForExistence(timeout:10))

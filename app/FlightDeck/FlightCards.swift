@@ -65,7 +65,7 @@ struct JourneyHero: View {
                     .font(.system(size:11)).foregroundStyle(.white.opacity(0.75)).fixedSize(horizontal:false,vertical:true)
             }
         }.padding(24).foregroundStyle(.white)
-            .background(LinearGradient(colors:[Deck.ink,Color(red:0.16,green:0.27,blue:0.34)],startPoint:.topLeading,endPoint:.bottomTrailing))
+            .background(Deck.navyGradient)
             .overlay(alignment:.topTrailing) {
                 ZStack {
                     Circle().stroke(.white.opacity(0.04),lineWidth:34).frame(width:245,height:245).offset(x:100,y:-100)
@@ -78,6 +78,32 @@ struct JourneyHero: View {
     }
     private func airport(_ code: String, size: CGFloat) -> some View {
         Text(code).font(.system(size:size,weight:.medium,design:.rounded)).tracking(1).fixedSize()
+    }
+}
+
+struct EmptyUpcomingCard: View {
+    let add: () -> Void
+    var body: some View {
+        VStack(alignment:.leading,spacing:32) {
+            VStack(alignment:.leading,spacing:12) {
+                Text("READY WHEN YOU ARE").eyebrow().foregroundStyle(.white.opacity(0.65))
+                Text("No upcoming\nflights").font(.system(size:34,weight:.bold)).tracking(-1.2)
+                    .fixedSize(horizontal:false,vertical:true)
+                Text("Add your next trip when you’re ready.").font(.subheadline).foregroundStyle(.white.opacity(0.78))
+                    .fixedSize(horizontal:false,vertical:true)
+            }
+            Button(action:add) {
+                Text("Add a flight").font(.subheadline.weight(.semibold)).foregroundStyle(Deck.ink)
+                    .frame(maxWidth:.infinity,minHeight:48).background(Deck.paper,in:RoundedRectangle(cornerRadius:14))
+            }.buttonStyle(.plain).accessibilityIdentifier("emptyAddFlight")
+        }.padding(24).foregroundStyle(.white).frame(maxWidth:.infinity,alignment:.leading)
+            .background(Deck.navyGradient)
+            .overlay(alignment:.topTrailing) {
+                Circle().stroke(.white.opacity(0.04),lineWidth:34).frame(width:245,height:245).offset(x:100,y:-100)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }.clipShape(RoundedRectangle(cornerRadius:28))
+            .shadow(color:Deck.ink.opacity(0.12),radius:18,x:0,y:8)
+            .launchCard()
     }
 }
 

@@ -7,9 +7,9 @@ struct StartView: View {
             ScrollView {
                 VStack(alignment:.leading,spacing:28) {
                     HStack(spacing:12) {
-                        Image(systemName:"airplane.departure").font(.system(size:23,weight:.medium)).foregroundStyle(.white)
-                            .frame(width:52,height:52).background(Deck.ink,in:RoundedRectangle(cornerRadius:17))
-                        Text("FLIGHTDECK").eyebrow().foregroundStyle(Deck.ink)
+                        Image("DepartureLogo").resizable().scaledToFit().frame(width:158)
+                            .padding(.horizontal,20).padding(.vertical,8).background(Deck.navyGradient,in:RoundedRectangle(cornerRadius:20))
+                            .accessibilityLabel("FlightDeck")
                     }.padding(.top,24)
                     VStack(alignment:.leading,spacing:14) {
                         Text("Your journey,\nall in one place.").font(.system(size:36,weight:.bold)).tracking(-1.4)

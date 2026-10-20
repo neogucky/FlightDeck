@@ -43,7 +43,7 @@ final class FlightStore {
             demo = true;hasEnteredApp = true;session = nil
             let count = args.first(where: { $0.hasPrefix("--uitesting-flight-count=") })
                 .flatMap { Int($0.replacingOccurrences(of:"--uitesting-flight-count=",with:"")) } ?? 2
-            trips = DemoData.trips(nextTripLegCount:count)
+            trips = args.contains("--uitesting-empty") ? []:DemoData.trips(nextTripLegCount:count)
         } else if args.contains("--uitesting-preserve") {
             demo = true;hasEnteredApp = true;session = nil
             trips = loadCache(demo:true)?.trips ?? []
