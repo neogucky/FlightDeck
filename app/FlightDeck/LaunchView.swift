@@ -19,18 +19,10 @@ struct LaunchCover: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var phase
     var body: some View {
-        ZStack(alignment:.topTrailing) {
-            NativeLaunchAnimation(destination:destination,reduceMotion:reduceMotion || testReduceMotion,finished:finished)
-                .accessibilityLabel("FlightDeck is taking off")
-                .accessibilityIdentifier("launchAnimation")
-            Button("Skip",action:finished)
-                .font(.subheadline.weight(.semibold)).foregroundStyle(Deck.ink)
-                .padding(.horizontal,18).frame(minHeight:44)
-                .background(Deck.paper.opacity(0.92),in:Capsule())
-                .padding(.trailing,24).padding(.top,62)
-                .accessibilityLabel("Skip launch animation").accessibilityIdentifier("skipLaunch")
-        }
-        .onChange(of:phase) { _,value in if value == .background { finished() } }
+        NativeLaunchAnimation(destination:destination,reduceMotion:reduceMotion || testReduceMotion,finished:finished)
+            .accessibilityLabel("FlightDeck is taking off")
+            .accessibilityIdentifier("launchAnimation")
+            .onChange(of:phase) { _,value in if value == .background { finished() } }
     }
     private var testReduceMotion: Bool {
         #if DEBUG

@@ -31,6 +31,7 @@ enum DemoData {
         inbound.actualDeparture = inbound.scheduledDeparture; inbound.status = "En Route"; inbound.progress = 68
         let first = leg(flight("LH2055","HAM","MUC",start,80),inbound:inbound)
         var secondInfo = flight("LX1107","MUC","ZRH",start.addingTimeInterval(140*60),55)
+        secondInfo.aircraftType = "BCS3"
         secondInfo.registration = "HB-JDB"; secondInfo.departureGate = "G28"; secondInfo.operator = "LX"
         var secondInbound = flight("LX1106","ZRH","MUC",start.addingTimeInterval(25*60),55)
         secondInbound.registration = "HB-JDB"; secondInbound.operator = "LX"

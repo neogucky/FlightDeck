@@ -4,20 +4,21 @@ final class FlightDeckUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
     func testColdLaunchCompletesAndDoesNotReplayOnTabChanges() {
         let app = XCUIApplication();app.launchArguments = ["--uitesting","--uitesting-launch"];app.launch()
+        XCTAssertFalse(app.buttons["skipLaunch"].exists)
         XCTAssertTrue(app.buttons["nextTrip"].waitForExistence(timeout:12))
         XCTAssertTrue(app.buttons["skipLaunch"].waitForNonExistence(timeout:12))
         capture("Departure landed on upcoming trip",app)
         app.tabBars.buttons["History"].tap();app.tabBars.buttons["Trips"].tap()
         XCTAssertTrue(app.buttons["nextTrip"].exists);XCTAssertFalse(app.buttons["skipLaunch"].exists)
     }
-    func testLaunchCanBeSkippedAndEmptyStateActionsWork() {
+    func testEmptyStateActionsWorkAfterLaunchCompletes() {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting","--uitesting-empty","--uitesting-launch","--uitesting-launch-frame=6.75"]
+        app.launchArguments = ["--uitesting","--uitesting-empty","--uitesting-launch"]
         app.launch()
-        XCTAssertTrue(app.buttons["skipLaunch"].waitForExistence(timeout:5))
-        capture("Blanket becoming empty-state card",app)
-        app.buttons["skipLaunch"].tap()
-        XCTAssertTrue(app.buttons["emptyAddFlight"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.buttons["skipLaunch"].exists)
+        XCTAssertTrue(app.buttons["emptyAddFlight"].waitForExistence(timeout:12))
+        let ready = XCTNSPredicateExpectation(predicate:NSPredicate(format:"isHittable == true"),object:app.buttons["emptyAddFlight"])
+        XCTAssertEqual(XCTWaiter.wait(for:[ready],timeout:12),.completed)
         XCTAssertFalse(app.buttons["nextTrip"].exists)
         capture("No upcoming flights",app)
         app.buttons["emptyAddFlight"].tap()
@@ -292,6 +293,10 @@ final class FlightDeckUITests: XCTestCase {
             XCTAssertTrue(trip.label.contains(text), "Missing trip information: \(text)")
         }
         XCTAssertFalse(trip.label.contains("A weekend in Zurich"))
+        XCTAssertTrue(trip.label.contains("Trip to Zurich"))
+        XCTAssertTrue(trip.label.contains("A320neo"))
+        XCTAssertTrue(trip.label.contains("A220-300"))
+        XCTAssertTrue(trip.label.contains("Next leg: LH2055"))
         let first = app.buttons["incoming-LH2055"]
         let second = app.buttons["incoming-LX1107"]
         XCTAssertTrue(first.exists)
@@ -299,6 +304,48 @@ final class FlightDeckUITests: XCTestCase {
         XCTAssertTrue(first.label.contains("MUC → HAM"))
         XCTAssertTrue(second.label.contains("ZRH → MUC"))
         capture("Dashboard",app)
+    }
+    func testJourneyStackMovesFocusToTheConnection() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting","--uitesting-journey-connecting"];app.launch()
+        let trip = app.buttons["nextTrip"]
+        XCTAssertTrue(trip.waitForExistence(timeout:10))
+        XCTAssertTrue(trip.label.contains("Trip to Zurich"))
+        XCTAssertTrue(trip.label.contains("Connecting"))
+        XCTAssertTrue(trip.label.contains("Next leg: LX1107"))
+        XCTAssertFalse(trip.label.contains("Next leg: LH2055"))
+        capture("Journey stack - connecting",app)
+    }
+    func testFailedAddRestoresTheButtonAndKeepsTheForm() {
+        let app = XCUIApplication();app.launchArguments = ["--uitesting","--uitesting-add-loading","--uitesting-add-error"];app.launch()
+        XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10));app.buttons["addFlight"].tap()
+        fill(app.textFields["flightNumber0"],"LX 1055",app)
+        let add = app.buttons["saveTrip"];add.tap()
+        let error = app.staticTexts["Test server could not save this flight. Please try again."]
+        XCTAssertTrue(error.waitForExistence(timeout:12))
+        XCTAssertTrue(add.isEnabled);XCTAssertEqual(add.label,"Add flight")
+        XCTAssertTrue(app.textFields["flightNumber0"].exists)
+        XCTAssertFalse(app.buttons["Trip added"].exists)
+        capture("Failed add remains retryable",app)
+        app.buttons["Cancel"].tap()
+    }
+    func testAirframeLoadingAndConfirmationWithAndWithoutReducedMotion() {
+        let app = XCUIApplication()
+        for reduced in [false,true] {
+            app.launchArguments = ["--uitesting","--uitesting-add-loading"] + (reduced ? ["--uitesting-reduce-motion"]:[])
+            app.launch()
+            XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:10));app.buttons["addFlight"].tap()
+            fill(app.textFields["flightNumber0"],"LX 1055",app)
+            let add = app.buttons["saveTrip"];add.tap()
+            Thread.sleep(forTimeInterval:1.3)
+            XCTAssertFalse(add.isEnabled)
+            capture(reduced ? "Reduced-motion aircraft loading":"Aircraft loading after morph",app)
+            let confirmation = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","Flight added"),object:add)
+            XCTAssertEqual(XCTWaiter.wait(for:[confirmation],timeout:8),.completed)
+            XCTAssertFalse(add.isEnabled)
+            capture(reduced ? "Reduced-motion flight added":"Flight added oval",app)
+            XCTAssertTrue(add.waitForNonExistence(timeout:5))
+            app.terminate()
+        }
     }
     func testRouteLayoutForDirectThreeAndFourFlightTrips() {
         let app = XCUIApplication()
@@ -343,6 +390,7 @@ final class FlightDeckUITests: XCTestCase {
         fill(second,"LX 1111",app)
         capture("Add connected flights",app)
         app.buttons["saveTrip"].tap()
+        XCTAssertTrue(app.buttons["saveTrip"].waitForNonExistence(timeout:10))
         XCTAssertTrue(app.buttons["addFlight"].waitForExistence(timeout:8))
         app.terminate()
         app.launchArguments = ["--uitesting-preserve"]

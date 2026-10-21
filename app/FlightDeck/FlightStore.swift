@@ -44,6 +44,10 @@ final class FlightStore {
             let count = args.first(where: { $0.hasPrefix("--uitesting-flight-count=") })
                 .flatMap { Int($0.replacingOccurrences(of:"--uitesting-flight-count=",with:"")) } ?? 2
             trips = args.contains("--uitesting-empty") ? []:DemoData.trips(nextTripLegCount:count)
+            if !trips.isEmpty,args.contains("--uitesting-journey-connecting") {
+                trips[0].legs[0].snapshot?.flight.actualDeparture = FlightTime.iso(Date().addingTimeInterval(-7200))
+                trips[0].legs[0].snapshot?.flight.actualArrival = FlightTime.iso(Date().addingTimeInterval(-1200))
+            }
         } else if args.contains("--uitesting-preserve") {
             demo = true;hasEnteredApp = true;session = nil
             trips = loadCache(demo:true)?.trips ?? []
@@ -204,6 +208,8 @@ final class FlightStore {
     }
     func add(_ payload: NewTrip) async throws {
         if demo {
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-add-loading") { try await Task.sleep(for:.seconds(3)) }
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-add-error") { throw ConnectionError.response("Test server could not save this flight. Please try again.") }
             let known = CalendarFlightDetection.existingKeys(trips)
             let inputs = payload.legs.filter { payload.importId == nil || !known.contains(CalendarFlight.key(number:$0.flightNumber,day:$0.departureDate)) }
             guard !inputs.isEmpty else { return }

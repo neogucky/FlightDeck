@@ -74,24 +74,14 @@ struct AddTripView: View {
                             .font(.footnote).foregroundStyle(Deck.muted)
                     }
                 }.padding(24)
-            }.background(Deck.paper).foregroundStyle(Deck.ink).scrollDismissesKeyboard(.interactively)
+            }.background(Deck.paper).foregroundStyle(Deck.ink).scrollDismissesKeyboard(.interactively).disabled(saving)
                 .safeAreaInset(edge:.bottom) {
-                    Button {
-                        saving = true; error = nil
-                        Task {
-                            do { try await store.add(NewTrip(title:"",legs:legs)); dismiss() }
-                            catch { self.error = error.localizedDescription }
-                            saving = false
-                        }
-                    } label: {
-                        HStack {
-                            if saving { ProgressView().tint(.white) }
-                            Text(saving ? "Saving your journey…":legs.count>1 ? "Save connected trip":"Save flight").font(.system(size:16,weight:.semibold))
-                            if !saving { Image(systemName:"arrow.right") }
-                        }.frame(maxWidth:.infinity).padding(19).foregroundStyle(.white)
-                            .background(validation == nil ? Deck.ink:Deck.ink.opacity(0.35),in:RoundedRectangle(cornerRadius:18))
-                    }.disabled(saving || validation != nil).accessibilityIdentifier("saveTrip")
-                        .padding(.horizontal,24).padding(.vertical,12).background(Deck.paper)
+                    AirframeActionButton(title:legs.count>1 ? "Add trip":"Add flight",successTitle:legs.count>1 ? "Trip added":"Flight added",
+                        enabled:!saving && validation == nil,identifier:"saveTrip",onStart:{ saving = true;error = nil;focusedField = nil },perform:{
+                            do { try await store.add(NewTrip(title:"",legs:legs));return true }
+                            catch { self.error = error.localizedDescription;return false }
+                        },onFinished:{ success in saving = false;if success { dismiss() } })
+                        .padding(.horizontal,24).padding(.vertical,4).background(Deck.paper)
                 }
                 .navigationTitle("Add flights").navigationBarTitleDisplayMode(.inline)
                 .toolbar {

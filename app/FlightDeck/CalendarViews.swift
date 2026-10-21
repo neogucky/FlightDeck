@@ -93,28 +93,31 @@ struct CalendarSuggestionsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var importingJourneyID: String?
     @State private var addingAll = false
+    @State private var displayedJourneys: [CalendarJourney] = []
+    @State private var completedJourneys: Set<String> = []
     private var busy: Bool { calendar.isImporting || importingJourneyID != nil || addingAll }
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment:.leading,spacing:24) {
                     Text("FROM YOUR CALENDAR").eyebrow().foregroundStyle(Deck.orange)
-                    Text(calendar.suggestions.isEmpty ? "You’re all caught up.":"Ready for your next trip?")
+                    Text(displayedJourneys.isEmpty ? "You’re all caught up.":"Ready for your next trip?")
                         .font(.system(size:30,weight:.bold)).tracking(-1)
-                    if calendar.suggestions.isEmpty {
+                    if displayedJourneys.isEmpty {
                         Text("No new flights found in the next six months. Already tracked and dismissed flights are excluded.")
                             .font(.subheadline).foregroundStyle(Deck.muted).accessibilityIdentifier("noCalendarFlightSuggestions")
                     } else {
                         Text("Review your flights below. Dismiss a journey to stop future suggestions. Connections use your calendar’s times.")
                             .font(.subheadline).foregroundStyle(Deck.muted)
                     }
-                    ForEach(calendar.journeys) { journey in
+                    ForEach(displayedJourneys) { journey in
                         VStack(alignment:.leading,spacing:18) {
                             HStack {
                                 Text(journey.flights.count>1 ? "\(journey.flights.count) CONNECTED FLIGHTS":"SINGLE FLIGHT").eyebrow().foregroundStyle(Deck.orange)
                                 Spacer()
-                                Button("Dismiss") { calendar.dismiss(journey.flights) }
+                                Button("Dismiss") { calendar.dismiss(journey.flights);displayedJourneys.removeAll { $0.id == journey.id } }
                                     .font(.caption).foregroundStyle(Deck.muted).accessibilityIdentifier("dismissJourney-\(journey.flights[0].flightNumber)")
+                                    .disabled(busy || completedJourneys.contains(journey.id))
                             }
                             ForEach(journey.flights) { flight in
                                 VStack(alignment:.leading,spacing:6) {
@@ -124,24 +127,14 @@ struct CalendarSuggestionsView: View {
                                         Text("\(flight.timeZoneID) · \(flight.calendarTitle)").font(.system(size:10)).foregroundStyle(Deck.muted)
                                 }.frame(maxWidth:.infinity,alignment:.leading)
                             }
-                            Button {
-                                guard !busy else { return }
-                                importingJourneyID = journey.id
-                                Task {
-                                    defer { importingJourneyID = nil }
-                                    if await calendar.add([journey],to:store),calendar.suggestions.isEmpty { dismiss() }
-                                }
-                            } label: {
-                                HStack(spacing:8) {
-                                    if importingJourneyID == journey.id { PlaneActivityIndicator() }
-                                    else { Image(systemName:"plus") }
-                                    Text(importingJourneyID == journey.id ? (journey.flights.count>1 ? "Adding trip…":"Adding flight…"):
-                                        (journey.flights.count>1 ? "Add connected trip":"Add flight"))
-                                }
-                                    .font(.subheadline.weight(.semibold)).frame(maxWidth:.infinity).padding(14)
-                                    .background(Deck.ink,in:RoundedRectangle(cornerRadius:14)).foregroundStyle(.white)
-                            }.accessibilityIdentifier("addCalendarJourney-\(journey.flights[0].flightNumber)")
-                        }.deckCard().disabled(busy)
+                            AirframeActionButton(title:journey.flights.count>1 ? "Add trip":"Add flight",successTitle:journey.flights.count>1 ? "Trip added":"Flight added",busyTitle:journey.flights.count>1 ? "Adding trip":"Adding flight",
+                                enabled:!busy && !completedJourneys.contains(journey.id),isAdded:completedJourneys.contains(journey.id),
+                                identifier:"addCalendarJourney-\(journey.flights[0].flightNumber)",onStart:{ importingJourneyID = journey.id },
+                                perform:{ await calendar.add([journey],to:store) },onFinished:{ success in
+                                    importingJourneyID = nil;reconcileCompleted()
+                                    if success,calendar.suggestions.isEmpty { dismiss() }
+                                })
+                        }.deckCard()
                     }
                     if let error = calendar.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                     if !calendar.suggestions.isEmpty {
@@ -154,22 +147,18 @@ struct CalendarSuggestionsView: View {
                 .toolbar { ToolbarItem(placement:.topBarLeading) { Button(calendar.suggestions.isEmpty ? "Done":"Later") { dismiss() }.disabled(busy) } }
                 .safeAreaInset(edge:.bottom) {
                     if calendar.suggestions.count>1 || addingAll {
-                        Button {
-                            guard !busy else { return }
-                            let journeys = calendar.journeys
-                            addingAll = true
-                            Task {
-                                defer { addingAll = false }
-                                if await calendar.add(journeys,to:store) { dismiss() }
-                            }
-                        } label: {
-                            HStack {
-                                if addingAll { PlaneActivityIndicator() }
-                                Text(addingAll ? "Adding flights…":"Add all \(calendar.suggestions.count) flights").fontWeight(.semibold)
-                            }.frame(maxWidth:.infinity).padding(18).foregroundStyle(.white).background(Deck.ink,in:RoundedRectangle(cornerRadius:16))
-                        }.disabled(busy).padding(20).background(Deck.paper).accessibilityIdentifier("addAllCalendarFlights")
+                        AirframeActionButton(title:"Add all \(displayedJourneys.filter { !completedJourneys.contains($0.id) }.flatMap(\.flights).count) flights",
+                            successTitle:"Flights added",busyTitle:"Adding flights",enabled:!busy,identifier:"addAllCalendarFlights",onStart:{ addingAll = true },
+                            perform:{ await calendar.add(calendar.journeys,to:store) },onFinished:{ success in
+                                addingAll = false;reconcileCompleted();if success { dismiss() }
+                            }).padding(.horizontal,20).background(Deck.paper)
                     }
                 }.interactiveDismissDisabled(busy)
+                .onAppear { displayedJourneys = calendar.journeys }
         }
+    }
+    private func reconcileCompleted() {
+        let pending = Set(calendar.journeys.map(\.id))
+        completedJourneys.formUnion(displayedJourneys.filter { !pending.contains($0.id) }.map(\.id))
     }
 }
