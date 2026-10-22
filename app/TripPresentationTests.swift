@@ -14,6 +14,16 @@ enum TripPresentationTests {
             expect(json["origin_iata"] == nil && json["destination_iata"] == nil,"Airports come from the lookup")
         }
         let baseline = DemoData.trips()[0]
+        var freshness=baseline
+        freshness.legs[0].snapshot?.fetchedAt="2026-10-22T12:00:00Z"
+        freshness.legs[1].snapshot?.fetchedAt="2026-10-22T12:05:00Z"
+        expect(freshness.dataUpdatedAt==FlightTime.date("2026-10-22T12:00:00Z"),"Trip freshness must represent the oldest flight data, not the last server poll")
+        freshness.legs[1].snapshot=nil
+        expect(freshness.dataUpdatedAt==nil,"An incomplete trip must not claim all its details were updated")
+        let oldUsage=Data(#"{"month":"2026-10","limit_usd":4.5,"hard_limit_usd":5,"reserved_usd":0.01,"provider_reported_usd":0.005,"conservative_used_usd":0.015,"remaining_usd":4.485,"request_count":1,"pricing_valid_until":"2026-11-18","blocked":false}"#.utf8)
+        let compatible=try! JSONCoding.decoder.decode(Usage.self,from:oldUsage)
+        expect(compatible.predictedPendingCosts==0.01,"An older server must remain readable during upgrade")
+        expect(FlightTime.relative(FlightTime.date("2026-10-22T12:00:00Z")!,now:FlightTime.date("2026-10-22T12:00:39Z")!)=="39 seconds ago","Freshness should show seconds for recent updates")
         expect(baseline.status == JourneyStatus(label:"All on time"),"Both legs must be on time")
 
         var scheduled = baseline

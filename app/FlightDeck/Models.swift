@@ -1,6 +1,11 @@
 import Foundation
 
 enum FlightTime {
+    static func relative(_ date: Date,now: Date = Date()) -> String {
+        let formatter=RelativeDateTimeFormatter();formatter.locale=Locale(identifier:"en")
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for:min(date,now),relativeTo:now)
+    }
     static func date(_ value: String?) -> Date? {
         guard let value else { return nil }
         let formatter = ISO8601DateFormatter()
@@ -118,6 +123,11 @@ struct Trip: Codable, Identifiable, Hashable {
         return legs.last?.snapshot?.flight.destination.city.nonempty ?? legs.last?.destinationIata ?? "Upcoming trip"
     }
     var nextLeg: FlightLeg? { legs.first(where: { !$0.isPast }) ?? legs.first }
+    var dataUpdatedAt: Date? {
+        let relevant=isPast ? legs:legs.filter { !$0.isPast }
+        let dates=relevant.compactMap { FlightTime.date($0.snapshot?.fetchedAt) }
+        return !relevant.isEmpty && dates.count==relevant.count ? dates.min():nil
+    }
     var status: JourneyStatus {
         if isPast { return JourneyStatus(label:"Arrived") }
         let remaining = legs.filter { !$0.isPast }
@@ -162,12 +172,19 @@ struct Usage: Codable {
     var pricingValidUntil: String
     var blocked: Bool
     var accountCheckedAt: String?
+    var pendingEstimatedUsd: Double? = nil
+    var pendingRequestCount: Int? = nil
+    var reportedThrough: String? = nil
+    var reportingDelaySeconds: Int? = nil
+    var predictedPendingCosts: Double { pendingEstimatedUsd ?? reservedUsd }
 }
 
 struct RefreshIssue: Codable, Identifiable, Hashable {
     var legId: String
     var code: String
     var message: String
+    var attemptedAt: String? = nil
+    var httpStatus: Int? = nil
     var id: String { legId + code }
 }
 

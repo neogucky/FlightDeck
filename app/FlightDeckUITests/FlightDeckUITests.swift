@@ -135,11 +135,22 @@ final class FlightDeckUITests: XCTestCase {
         app.tabBars.buttons["Trips"].tap();app.buttons["addFlight"].tap()
         fill(app.textFields["flightNumber0"],"LH2055",app)
         app.buttons["saveTrip"].tap()
+        XCTAssertTrue(app.buttons["saveTrip"].waitForNonExistence(timeout:10))
         XCTAssertTrue(app.buttons["nextTrip"].waitForExistence(timeout:10))
         app.tabBars.buttons["Usage"].tap()
         XCTAssertTrue(app.staticTexts["safetyUsageTotal"].waitForExistence(timeout:10))
         XCTAssertTrue(app.staticTexts["safetyUsageTotal"].label.contains("0.035"))
-        XCTAssertEqual(app.staticTexts["reservedLookupCount"].label,"1 paid lookup")
+        XCTAssertEqual(app.staticTexts["reservedLookupCount"].label,"1 request")
+        XCTAssertTrue(app.staticTexts["Predicted pending costs"].exists)
+        XCTAssertFalse(app.buttons["refreshUsage"].exists)
+        let scroll=app.scrollViews.containing(.staticText,identifier:"safetyUsageTotal").firstMatch
+        let freshness=scroll.staticTexts["dataFreshness"]
+        XCTAssertTrue(freshness.label.hasPrefix("Last updated "))
+        scroll.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.2)).press(forDuration:0.1,
+            thenDragTo:scroll.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.9)),withVelocity:.slow,thenHoldForDuration:0.5)
+        let fresh=XCTNSPredicateExpectation(predicate:NSPredicate(format:"label MATCHES %@","Last updated ([0-8] seconds|1 second) ago"),object:freshness)
+        XCTAssertEqual(XCTWaiter.wait(for:[fresh],timeout:5),.completed)
+        XCTAssertTrue(app.staticTexts["usageReportedThrough"].waitForExistence(timeout:5))
         capture("Usage after a flight lookup",app)
         app.swipeUp();XCTAssertTrue(app.staticTexts["Monthly history"].waitForExistence(timeout:5))
         capture("Monthly usage history",app)
@@ -293,6 +304,8 @@ final class FlightDeckUITests: XCTestCase {
             XCTAssertTrue(trip.label.contains(text), "Missing trip information: \(text)")
         }
         XCTAssertFalse(trip.label.contains("A weekend in Zurich"))
+        XCTAssertTrue(app.staticTexts["dataFreshness"].label.hasPrefix("Last updated "))
+        XCTAssertTrue(app.staticTexts["pullToRefreshHint"].exists)
         XCTAssertTrue(trip.label.contains("Trip to Zurich"))
         XCTAssertTrue(trip.label.contains("A320neo"))
         XCTAssertTrue(trip.label.contains("A220-300"))

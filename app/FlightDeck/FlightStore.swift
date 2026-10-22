@@ -12,6 +12,9 @@ final class FlightStore {
     var isRefreshing = false
     var error: String?
     var lastSynced: Date?
+    var isRefreshingUsage = false
+    var usageError: String?
+    @ObservationIgnored private var usageRequestID: UUID?
     var serverMode = "live"
     var demo = false
     var hasEnteredApp = false
@@ -63,6 +66,7 @@ final class FlightStore {
     }
 
     private func active(_ token: String) -> Bool { !demo && session?.token == token }
+    private func resetUsageActivity() { isRefreshingUsage=false;usageError=nil;usageRequestID=nil }
     private func cacheURL(demo: Bool) -> URL? {
         let dir = FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0]
         try? FileManager.default.createDirectory(at:dir,withIntermediateDirectories:true)
@@ -112,6 +116,7 @@ final class FlightStore {
         catch { try? await authenticated.perform("/v1/auth/logout");throw error }
         if let old = cacheURL(demo:false) { try? FileManager.default.removeItem(at:old) }
         session = saved;self.address = canonical;demo = false;account = auth.account
+        resetUsageActivity()
         usageHistory = [];isRefreshing = false;lastSynced = nil;error = nil
         defaults.set(canonical,forKey:"serverAddress")
         apply(state);persist()
@@ -144,14 +149,17 @@ final class FlightStore {
         catch { self.error = error.localizedDescription;return }
         if let url = cacheURL(demo:false) { try? FileManager.default.removeItem(at:url) }
         session = nil;account = nil;usage = nil;usageHistory = [];issues = [];lastSynced = nil;isRefreshing = false
+        resetUsageActivity()
         demo = false;hasEnteredApp = false;serverMode = "live";trips = []
         error = remoteFailed ? "Signed out on this device. The server could not be reached to revoke the session; sign in and choose ‘Sign out all devices’ when connected.":nil
     }
     func useDemo() {
+        resetUsageActivity()
         demo = true;hasEnteredApp = true;account = nil;serverMode = "demo";isRefreshing = false;lastSynced = nil
         trips = loadCache(demo:true)?.trips ?? DemoData.trips();usage = nil;usageHistory = [];error = nil;issues = [];persist()
     }
     func leaveDemo() {
+        resetUsageActivity()
         demo = false;hasEnteredApp = false;account = nil;serverMode = "live";isRefreshing = false;lastSynced = nil
         trips = [];usage = nil;usageHistory = [];error = nil;issues = []
     }
@@ -159,6 +167,7 @@ final class FlightStore {
     func enterAccount() { if isSignedIn { hasEnteredApp = true } }
     func resumeSession() async {
         guard let saved = session else { return }
+        resetUsageActivity()
         demo = false;hasEnteredApp = true;address = saved.address;account = saved.account;usageHistory = []
         trips = [];usage = nil;issues = [];lastSynced = nil
         if let cached = loadCache(demo:false),cached.account?.id == saved.account.id { apply(cached) }
@@ -167,6 +176,7 @@ final class FlightStore {
     private func handle(_ error: Error, token: String) {
         guard active(token) else { return }
         if case ConnectionError.unauthorized = error {
+            resetUsageActivity()
             if let url = cacheURL(demo:false) { try? FileManager.default.removeItem(at:url) }
             try? TokenVault.clear();session = nil;account = nil;trips = [];usage = nil;usageHistory = [];issues = [];isRefreshing = false;hasEnteredApp = false
         }
@@ -200,11 +210,19 @@ final class FlightStore {
         await refresh()
     }
     func fetchUsage(refreshProvider: Bool = false) async {
-        guard let client,let token = session?.token else { return }
+        guard !isRefreshingUsage,let client,let token = session?.token else { return }
+        let requestID=UUID();usageRequestID=requestID
+        isRefreshingUsage=true
+        defer { if usageRequestID==requestID { isRefreshingUsage=false;usageRequestID=nil } }
         do {
             let report = try await client.send(refreshProvider ? "/v1/usage/refresh":"/v1/usage",method:refreshProvider ? "POST":"GET",as:UsageReport.self)
-            guard active(token) else { return };usage = report.usage;usageHistory = report.history;error = nil;persist()
-        } catch { handle(error,token:token) }
+            guard active(token) else { return };usage = report.usage;usageHistory = report.history;usageError = nil;persist()
+        } catch {
+            guard active(token) else { return }
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
+            if case ConnectionError.unauthorized = error { handle(error,token:token) }
+            else { usageError=error.localizedDescription }
+        }
     }
     func add(_ payload: NewTrip) async throws {
         if demo {

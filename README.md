@@ -19,12 +19,12 @@ A native iPhone flight companion for frequent travellers. Keep your upcoming fli
   <tr>
     <td><a href="previews/overview.png"><img src="previews/overview.png" width="250" alt="A Hamburg–Munich–Zurich journey with flight numbers above the route arrows and a separate incoming-aircraft card for each leg"></a></td>
     <td><a href="previews/schedule-overview.png"><img src="previews/schedule-overview.png" width="250" alt="A Zurich–Hamburg flight displaying published times and an explicit Schedule only label"></a></td>
-    <td><a href="previews/usage.png"><img src="previews/usage.png" width="250" alt="The Usage tab showing the monthly safety budget, provider-reported spend and local reservations"></a></td>
+    <td><a href="previews/usage.png"><img src="previews/usage.png" width="250" alt="The Usage tab showing the monthly safety budget, provider-reported spend and predicted pending costs"></a></td>
   </tr>
   <tr>
     <td>A single overview for the journey, with incoming flights for each remaining leg.</td>
     <td>Published schedules appear first; live status and aircraft information follow when available.</td>
-    <td>See your account's spending and the requests reserved against its safety budget.</td>
+    <td>See reported spending and predicted costs for requests still awaiting the provider's usage report.</td>
   </tr>
 </table>
 
@@ -33,10 +33,10 @@ A native iPhone flight companion for frequent travellers. Keep your upcoming fli
 - **Follow the whole journey.** Save a direct flight or up to eight connected legs. Routes with one to three flights show flight numbers over the connecting arrows; longer journeys use a compact summary.
 - **Watch your incoming aircraft.** See the previous flight of the aircraft assigned to each upcoming leg, alongside aircraft type and registration when the provider supplies them. Assignments are checked again as they change.
 - **Keep useful flight details together.** View status, scheduled and updated times, and gates or terminals when available, with airport-local times. Advance schedules are clearly marked **Schedule only**.
-- **Refresh without starting over.** Live information refreshes when more than 15 minutes old while the app is active. Pull down to request an update; server caching and budget controls still apply.
+- **Refresh without starting over.** Live information refreshes when more than 15 minutes old while the app is active. Trips, details and usage show when their data was last updated and provide one pull-to-refresh gesture. Server caching and budget controls still apply.
 - **Build a flight journal.** The History tab keeps flights you have added. Saved itinerary numbers and dates remain; provider-derived details expire after 29 days.
 - **Keep your account connected.** Sign in once and keep the session in the iPhone Keychain. Trips, provider credentials, caches and usage are separated by account.
-- **A quiet takeoff.** A DC-3 pulls the navy launch screen into view, then the Departure logo settles into your next-trip card. With no upcoming flights it lands on an empty-state card with add and calendar actions. The animation plays on cold launch, has a Skip button, respects Reduce Motion, and uses no audio. The matching icon shares the same DC-3 and departure trail.
+- **A quiet takeoff.** A DC-3 pulls the navy launch screen into view, then the Departure logo settles into your next-trip card. With no upcoming flights it lands on an empty-state card with add and calendar actions. The animation completes automatically on cold launch, respects Reduce Motion, and uses no audio. The matching icon shares the same DC-3 and departure trail.
 
 <table>
   <tr><th>Departure</th><th>Ready for your next trip</th></tr>

@@ -3,10 +3,9 @@ import SwiftUI
 struct UsageView: View {
     @Environment(FlightStore.self) private var store
     @State private var showingKey = false
-    @State private var updating = false
     var body: some View {
         NavigationStack {
-            ScrollView {
+            FreshnessScrollView(lastUpdated:FlightTime.date(store.usage?.accountCheckedAt),isRefreshing:store.isRefreshingUsage,refresh:{ await store.fetchUsage(refreshProvider:true) }) {
                 VStack(alignment:.leading,spacing:24) {
                     Text("YOUR ACCOUNT, AT A GLANCE").eyebrow().foregroundStyle(Deck.muted)
                     Text("API usage").font(.system(size:34,weight:.bold)).tracking(-1.2)
@@ -32,29 +31,22 @@ struct UsageView: View {
                                 HStack {
                                     Text("\(amount(usage.remainingUsd)) remaining")
                                     Spacer()
-                                    Text("\(usage.requestCount) paid \(usage.requestCount == 1 ? "lookup":"lookups")").accessibilityIdentifier("reservedLookupCount")
+                                    Text("\(usage.requestCount) \(usage.requestCount == 1 ? "request":"requests")").accessibilityIdentifier("reservedLookupCount")
                                 }.font(.system(size:11)).foregroundStyle(.white.opacity(0.7))
                             }.padding(24).foregroundStyle(.white).background(Deck.ink,in:RoundedRectangle(cornerRadius:26))
                             SectionTitle(title:"How it adds up")
                             VStack(spacing:16) {
                                 metric("FlightAware reported",value:usage.providerReportedUsd)
                                 Divider()
-                                metric("Reserved by FlightDeck",value:usage.reservedUsd)
+                                metric("Predicted pending costs",value:usage.predictedPendingCosts)
                                 Divider()
                                 metric("Conservative safety total",value:usage.conservativeUsedUsd,bold:true)
                             }.deckCard()
-                            Text("The safety total adds FlightAware’s reported usage across all keys in your provider account and all local reservations. This intentionally counts some usage twice, leaving room for delayed billing. It is not an invoice.")
+                            Text(usage.reportedThrough != nil ? "FlightAware updates usage every 10 minutes. We allow another 5 minutes for processing, then replace pending estimates with reported usage. Pending costs are conservative estimates and may exceed the final charge.":"Your server has not supplied a billing coverage time. Pending estimates may overlap reported usage until the server is updated.")
                                 .font(.footnote).foregroundStyle(Deck.muted).lineSpacing(3)
-                            Button {
-                                updating = true;Task { await store.fetchUsage(refreshProvider:true);updating = false }
-                            } label: {
-                                HStack {
-                                    if updating { ProgressView().controlSize(.small) }
-                                    Label("Refresh account usage",systemImage:"arrow.clockwise")
-                                }.font(.system(size:14,weight:.semibold))
-                            }.disabled(updating).foregroundStyle(Deck.ink).accessibilityIdentifier("refreshUsage")
-                            if let checked = FlightTime.date(usage.accountCheckedAt) {
-                                Text("FlightAware last checked \(checked.formatted(.relative(presentation:.named)))").font(.system(size:11)).foregroundStyle(Deck.muted)
+                            if let through = FlightTime.date(usage.reportedThrough) {
+                                Text("Reported period ends \(through.formatted(.dateTime.day().month(.abbreviated).hour().minute())). Newer requests are included in pending costs.")
+                                    .font(.system(size:11)).foregroundStyle(Deck.muted).accessibilityIdentifier("usageReportedThrough")
                             }
                             if usage.blocked {
                                 Label("New paid lookups are paused. Your saved flights remain available. Check the budget and pricing review date below.",systemImage:"pause.circle")
@@ -74,7 +66,7 @@ struct UsageView: View {
                                     HStack {
                                         VStack(alignment:.leading,spacing:4) {
                                             Text(period.month).font(.system(size:14,weight:.semibold,design:.monospaced))
-                                            Text("\(period.requestCount) paid \(period.requestCount == 1 ? "lookup":"lookups")").font(.system(size:11)).foregroundStyle(Deck.muted)
+                                            Text("\(period.requestCount) \(period.requestCount == 1 ? "request":"requests")").font(.system(size:11)).foregroundStyle(Deck.muted)
                                         }
                                         Spacer()
                                         Text(amount(period.conservativeUsedUsd)).font(.system(size:16,weight:.semibold,design:.rounded))
@@ -91,11 +83,13 @@ struct UsageView: View {
                             Text("Demo flights do not use FlightAware or incur API charges.").font(.footnote).foregroundStyle(Deck.muted)
                         }.frame(maxWidth:.infinity,alignment:.leading).deckCard()
                     }
-                    if let error = store.error { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
+                    if let error = store.usageError { Text(error).font(.footnote).foregroundStyle(Deck.orange) }
                 }.padding(24)
             }.background(Deck.paper).foregroundStyle(Deck.ink).toolbar(.hidden,for:.navigationBar)
-                .task { await store.fetchUsage() }
-                .refreshable { await store.fetchUsage(refreshProvider:true) }
+                .task {
+                    let checked=FlightTime.date(store.usage?.accountCheckedAt) ?? .distantPast
+                    await store.fetchUsage(refreshProvider:Date().timeIntervalSince(checked)>60)
+                }
                 .sheet(isPresented:$showingKey) { APIKeySetupView() }
         }
     }

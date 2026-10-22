@@ -8,7 +8,7 @@ struct DashboardView: View {
     @State private var calendarSetup = false
     var body: some View {
         NavigationStack {
-            ScrollView {
+            FreshnessScrollView(lastUpdated:store.upcoming.first?.dataUpdatedAt ?? (store.upcoming.isEmpty ? store.lastSynced:nil),isRefreshing:store.isRefreshing,refresh:{ await store.refresh(force:true) }) {
                 VStack(alignment:.leading,spacing:24) {
                     HStack(alignment:.center) {
                         VStack(alignment:.leading,spacing:8) {
@@ -47,7 +47,7 @@ struct DashboardView: View {
                     if let next = store.upcoming.first {
                         NavigationLink(value:next.id) { JourneyHero(trip:next).launchCard() }.buttonStyle(.plain).accessibilityIdentifier("nextTrip")
                         if let issue = next.legs.compactMap(\.issue).first ?? store.issues.first(where:{ issue in next.legs.contains(where:{ $0.id == issue.legId }) }) {
-                            Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.orange)
+                            RefreshIssueView(issue:issue,flightNumber:next.legs.first(where:{ $0.id==issue.legId })?.flightNumber)
                                 .accessibilityIdentifier("flightLookupIssue")
                         }
                         VStack(alignment:.leading,spacing:12) {
@@ -94,7 +94,6 @@ struct DashboardView: View {
                         .tracking(0.8).foregroundStyle(Deck.muted.opacity(0.7)).frame(maxWidth:.infinity).padding(.bottom,8)
                 }.padding(.horizontal,24).padding(.top,16).padding(.bottom,20)
             }.background(Deck.paper).toolbar(.hidden,for:.navigationBar)
-                .refreshable { await store.refresh(force:true) }
                 .navigationDestination(for:String.self) { TripDetailView(tripID:$0) }
                 .sheet(isPresented:$adding) { AddTripView() }
                 .sheet(isPresented:$calendarSuggestions) { CalendarSuggestionsView() }

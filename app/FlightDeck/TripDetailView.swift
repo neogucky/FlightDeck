@@ -7,7 +7,7 @@ struct TripDetailView: View {
     @State private var deleting = false
     var trip: Trip? { store.trips.first { $0.id == tripID } }
     var body: some View {
-        ScrollView {
+        FreshnessScrollView(lastUpdated:trip?.dataUpdatedAt,isRefreshing:store.isRefreshing,refresh:{ await store.refresh(force:true,tripID:tripID) }) {
             if let trip {
                 VStack(alignment:.leading,spacing:24) {
                     Text(trip.isPast ? "IN YOUR FLIGHT JOURNAL":"YOUR JOURNEY").eyebrow().foregroundStyle(Deck.muted)
@@ -40,7 +40,7 @@ struct TripDetailView: View {
                                 }.deckCard(padding:18)
                             }
                             if let issue = leg.issue ?? store.issues.first(where: { $0.legId == leg.id }) {
-                                Label(issue.message,systemImage:"info.circle").font(.footnote).foregroundStyle(Deck.orange)
+                                RefreshIssueView(issue:issue)
                             }
                             if let snapshot = leg.snapshot {
                                 HStack(spacing:5) {
@@ -63,7 +63,6 @@ struct TripDetailView: View {
                 }.padding(24)
             }
         }.background(Deck.paper).foregroundStyle(Deck.ink).navigationTitle("Trip details").navigationBarTitleDisplayMode(.inline)
-            .refreshable { await store.refresh(force:true,tripID:tripID) }
             .toolbar {
                 ToolbarItem(placement:.topBarTrailing) {
                     Menu {

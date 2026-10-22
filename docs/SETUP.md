@@ -135,7 +135,7 @@ All other endpoints require `Authorization: Bearer <session-token>` and select t
 - `GET /v1/account` — public account metadata, never secrets.
 - `PUT /v1/account/api-key`, `DELETE /v1/account/api-key` — configure/remove a provider key. **No read-back endpoint.**
 - `GET /v1/state` — account metadata, trips, current usage and refresh issues.
-- `GET /v1/usage`, `POST /v1/usage/refresh` — local current/history report, or refresh provider account metering first.
+- `GET /v1/usage`, `POST /v1/usage/refresh` — local current/history report, or refresh provider account metering first. The app uses pull-to-refresh for this action. `account_checked_at` is the last successful provider check; `reported_through` is the exact requested reporting cutoff. `pending_estimated_usd` estimates costs for unreconciled requests; `reserved_usd` remains a compatibility alias. See [the budget guide](../server/BUDGET.md) for the ten-minute reporting cadence and additional five-minute buffer.
 - `POST /v1/trips`, `DELETE /v1/trips/{id}` — save/remove the user's itinerary.
 - `POST /v1/refresh?force=false&trip_id=<optional>` — refresh relevant flights within cache/rate/budget rules.
 
@@ -204,7 +204,7 @@ The native calendar UI test uses `--uitesting-calendar` on a separate test simul
 
 ## Launch animation and artwork
 
-The native launch scene runs once per cold app launch. It never delays flight refreshes or calendar scanning, and returning from the background does not replay it. **Skip** opens the app immediately; iOS **Reduce Motion** uses a brief logo fade. Backgrounding during launch dismisses the animation. The navy sheet resolves to the measured upcoming-trip or empty-state card; the initial server connection screen uses a fade instead.
+The native launch scene runs once per cold app launch. It never delays flight refreshes or calendar scanning, and returning from the background does not replay it. iOS **Reduce Motion** uses a brief logo fade. Backgrounding during launch dismisses the animation. The navy sheet resolves to the measured upcoming-trip or empty-state card; the initial server connection screen uses a fade instead.
 
 The empty Trips screen offers **Add a flight** and **Search calendar**. The latter opens calendar setup until permission and a calendar selection are available, then searches and presents suggestions. History remains in its own tab.
 

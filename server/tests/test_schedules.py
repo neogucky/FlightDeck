@@ -76,7 +76,7 @@ def test_future_schedule_derives_route_local_times_and_aircraft_type_with_exact_
         assert await service.refresh()==[]
         assert seen==initial  # Repeated foreground polling buys no more schedule calls.
         await service.refresh(trip['id'],force=True)
-        assert api.gate.summary()['reserved_usd']==0.14
+        assert api.gate.summary()['reserved_usd']==0.04  # Older calls are covered by the settled usage report.
         assert sum('/airports/' in p for p in seen)==2  # Pull refresh reuses airport metadata.
         await api.close()
     asyncio.run(run())
@@ -93,7 +93,7 @@ def test_schedule_transitions_to_live_even_when_daily_snapshot_is_fresh(tmp_path
         snapshot=service.list()[0]['legs'][0]['snapshot']
         assert snapshot['source']=='live' and snapshot['flight']['registration']=='HB-TEST'
         assert any('/flights/LX1052' in p for p in seen)
-        assert api.gate.summary()['reserved_usd']==0.12
+        assert api.gate.summary()['reserved_usd']==0.01  # Only the newest request remains pending.
         await api.close()
     asyncio.run(run())
 

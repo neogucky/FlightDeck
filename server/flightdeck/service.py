@@ -130,6 +130,7 @@ class FlightService:
     async def refresh_leg(self, leg, force):
         now=self.clock()
         snapshot=self.db.snapshot(leg['id'])
+        previous_issue=self.db.refresh_issue(leg['id'])
         day=date.fromisoformat(leg['departure_date'])
         if day<now.date()-timedelta(days=9):
             raise ConnectorError('This flight is saved in your history. Live details are available only for recent flights.', 'outside_live_window')
@@ -137,7 +138,7 @@ class FlightService:
         if snapshot and snapshot.get('source')=='schedule':
             departure=snapshot['flight'].get('scheduled_departure')
             if departure and datetime.fromisoformat(departure.replace('Z','+00:00'))>now+timedelta(hours=47): live=False
-        if snapshot and not force:
+        if snapshot and not force and not previous_issue:
             age=(now-datetime.fromisoformat(snapshot['fetched_at'])).total_seconds()
             if snapshot.get('source')=='schedule':
                 if not live and age<86400: return True
@@ -145,8 +146,9 @@ class FlightService:
         if self.settings.mode == 'live' and self.connector is None:
             raise ConnectorError('Add your AeroAPI key in Settings to enable live flight information.','api_key_required')
         cooldown=60 if force else 900 if live else 86400
-        previous_issue=self.db.refresh_issue(leg['id'])
         if previous_issue and previous_issue['code']=='rate_limited': cooldown=60
+        elif previous_issue and previous_issue['code'] in {'provider_unavailable','provider_connection_error','provider_tls_error','provider_timeout','provider_http_error','provider_response_interrupted','usage_unverified'}:
+            cooldown=min(cooldown,300)
         if not self.db.claim_refresh(leg['id'],now,min_seconds=cooldown):
             return False
         if self.settings.mode=='demo':
@@ -202,5 +204,6 @@ class FlightService:
                 try:
                     if await self.refresh_leg(leg,force): self.db.set_refresh_issue(leg['id'],None)
                 except ConnectorError as error:
-                    self.db.set_refresh_issue(leg['id'],{'leg_id':leg['id'],'code':error.code,'message':error.message})
+                    self.db.set_refresh_issue(leg['id'],{'leg_id':leg['id'],'code':error.code,'message':error.message,
+                        'attempted_at':self.clock().isoformat(),'http_status':error.http_status})
         return self.issues()

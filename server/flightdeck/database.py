@@ -36,6 +36,17 @@ class Database:
                 CREATE TABLE IF NOT EXISTS refresh_issues(leg_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS provider_attempts(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL);
             """)
+            # Preserve the original ledger; add settlement metadata in place.
+            columns={r['name'] for r in db.execute('PRAGMA table_info(reservations)')}
+            if 'completed_at' not in columns:
+                db.execute('ALTER TABLE reservations ADD COLUMN completed_at TEXT')
+                for row in db.execute('SELECT id,created_at FROM reservations').fetchall():
+                    completed=datetime.fromisoformat(row['created_at'])+timedelta(minutes=1)
+                    db.execute('UPDATE reservations SET completed_at=? WHERE id=?',(completed.isoformat(),row['id']))
+            if 'reconciled_at' not in columns:
+                db.execute('ALTER TABLE reservations ADD COLUMN reconciled_at TEXT')
+            if 'covered_through' not in {r['name'] for r in db.execute('PRAGMA table_info(account_usage)')}:
+                db.execute('ALTER TABLE account_usage ADD COLUMN covered_through TEXT')
 
     @contextmanager
     def connect(self):
