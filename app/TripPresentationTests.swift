@@ -14,6 +14,15 @@ enum TripPresentationTests {
             expect(json["origin_iata"] == nil && json["destination_iata"] == nil,"Airports come from the lookup")
         }
         let baseline = DemoData.trips()[0]
+        checkAircraftReadiness(baseline.legs[0])
+        var tracked=baseline.legs[0]
+        tracked.snapshot?.fetchedAt=FlightTime.iso(Date().addingTimeInterval(-45*60))
+        tracked.automaticRefreshIntervalSeconds=7200
+        expect(!tracked.isDataStale,"A 45-minute-old flight is within the two-hour refresh interval")
+        tracked.automaticRefreshIntervalSeconds=900
+        expect(tracked.isDataStale,"The same data is stale inside the six-hour tracking window")
+        tracked.automaticRefreshIntervalSeconds=0
+        expect(!tracked.isDataStale,"Paused automatic tracking has no update deadline")
         var freshness=baseline
         freshness.legs[0].snapshot?.fetchedAt="2026-10-22T12:00:00Z"
         freshness.legs[1].snapshot?.fetchedAt="2026-10-22T12:05:00Z"
@@ -71,5 +80,46 @@ enum TripPresentationTests {
         trip.legs = []
         expect(trip.status.label == "Awaiting status","An empty trip must not imply success")
         print("Trip presentation checks passed: status considers all legs, missing data, connections and completion.")
+    }
+
+    static func checkAircraftReadiness(_ baseline: FlightLeg) {
+        let now=FlightTime.date("2026-10-22T12:00:00Z")!
+        var leg=baseline
+        leg.snapshot?.inbound?.actualArrival=FlightTime.iso(now.addingTimeInterval(-119*60))
+        expect(leg.readyAircraftAirport(at:now)==nil,"A recently arrived flight must remain visible")
+        leg.snapshot?.inbound?.actualArrival=FlightTime.iso(now.addingTimeInterval(-2*3600))
+        expect(leg.readyAircraftAirport(at:now)==nil,"Keep the incoming flight through the exact two-hour boundary")
+        leg.snapshot?.inbound?.actualArrival=FlightTime.iso(now.addingTimeInterval(-2*3600-1))
+        expect(leg.readyAircraftAirport(at:now)?.iata=="HAM","An assigned plane that arrived over two hours ago is ready at the departure airport")
+        let ready=leg
+
+        leg.snapshot?.inbound?.actualArrival=nil
+        leg.snapshot?.inbound?.estimatedArrival=FlightTime.iso(now.addingTimeInterval(-3*3600))
+        expect(leg.readyAircraftAirport(at:now)==nil,"An old estimate is not a confirmed landing")
+        leg=ready;leg.snapshot?.inbound?.actualArrival=FlightTime.iso(now.addingTimeInterval(60))
+        expect(leg.readyAircraftAirport(at:now)==nil,"A future arrival cannot mark the plane ready")
+        leg=ready;leg.snapshot?.inbound?.destination.iata="ZRH"
+        expect(leg.readyAircraftAirport(at:now)==nil,"The aircraft must have arrived at this flight's departure airport")
+        leg=ready;leg.snapshot?.inbound?.registration="OTHER"
+        expect(leg.readyAircraftAirport(at:now)==nil,"An old flight of a different plane cannot mark the assigned aircraft ready")
+        leg=ready;leg.snapshot?.flight.inboundProviderId="new-assignment"
+        expect(leg.readyAircraftAirport(at:now)==nil,"A replaced incoming-flight assignment must not show the old plane as ready")
+        leg=ready;leg.snapshot?.inbound?.diverted=true
+        expect(leg.readyAircraftAirport(at:now)==nil,"A diverted arrival does not confirm the departure airport")
+        leg=ready;leg.snapshot?.inbound?.cancelled=true
+        expect(leg.readyAircraftAirport(at:now)==nil,"A cancelled incoming flight cannot confirm arrival")
+        leg=ready;leg.snapshot?.flight.actualDeparture=FlightTime.iso(now)
+        expect(leg.readyAircraftAirport(at:now)==nil,"An already departed flight must not say its plane is waiting at the airport")
+        leg=ready;leg.snapshot?.source="schedule"
+        expect(leg.readyAircraftAirport(at:now)==nil,"A published schedule cannot confirm a parked plane")
+
+        leg=ready;leg.snapshot?.flight.registration=nil;leg.snapshot?.inbound?.registration=nil
+        expect(leg.readyAircraftAirport(at:now)==nil,"An unverified plane must not be called ready")
+        leg.snapshot?.flight.inboundProviderId="confirmed-inbound"
+        leg.snapshot?.inbound?.providerId="confirmed-inbound"
+        expect(leg.readyAircraftAirport(at:now)?.iata=="HAM","A confirmed provider assignment works even without a registration")
+        leg.snapshot?.inbound?.actualArrival="2026-10-22T11:59:59+02:00"
+        expect(leg.readyAircraftAirport(at:now)?.iata=="HAM","The two-hour cutoff must compare instants across timezones")
+        expect(baseline.readyAircraftAirport(at:now)==nil,"An aircraft still en route keeps its incoming-flight card")
     }
 }

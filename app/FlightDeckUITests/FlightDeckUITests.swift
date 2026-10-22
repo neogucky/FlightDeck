@@ -296,6 +296,37 @@ final class FlightDeckUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.tabBars.buttons["Settings"].tap();app.buttons["signOut"].tap()
     }
+    func testOldIncomingArrivalShowsPlaneReadyOnOverviewAndDetail() {
+        let app=XCUIApplication()
+        app.launchArguments=["--uitesting","--uitesting-flight-count=1","--uitesting-incoming-landed-minutes=180"]
+        app.launch()
+        let incoming=app.buttons["incoming-LH2055"]
+        XCTAssertTrue(incoming.waitForExistence(timeout:10))
+        XCTAssertTrue(incoming.label.contains("Plane ready in HAM"))
+        XCTAssertTrue(incoming.label.contains("D-AINQ"))
+        XCTAssertFalse(incoming.label.contains("LH2052"))
+        XCTAssertFalse(incoming.label.contains("MUC → HAM"))
+        capture("Aircraft already at the departure airport",app)
+        app.buttons["nextTrip"].tap();app.swipeUp()
+        let cards=app.descendants(matching:.any).matching(identifier:"aircraftStatus-LH2055")
+        let ready=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in
+            cards.allElementsBoundByIndex.contains { $0.isHittable && $0.label.contains("Plane ready in HAM") }
+        },object:app)
+        XCTAssertEqual(XCTWaiter.wait(for:[ready],timeout:5),.completed)
+        capture("Ready aircraft in trip details",app)
+    }
+    func testRecentlyArrivedIncomingFlightStaysVisible() {
+        let app=XCUIApplication()
+        app.launchArguments=["--uitesting","--uitesting-flight-count=1","--uitesting-incoming-landed-minutes=60"]
+        app.launch()
+        let incoming=app.buttons["incoming-LH2055"]
+        XCTAssertTrue(incoming.waitForExistence(timeout:10))
+        XCTAssertTrue(incoming.label.contains("MUC → HAM"))
+        XCTAssertTrue(incoming.label.contains("LH2052"))
+        XCTAssertTrue(incoming.label.contains("Arrived"))
+        XCTAssertFalse(incoming.label.contains("Plane ready"))
+        capture("Recently landed incoming flight",app)
+    }
     func testOverviewDescribesTheWholeTripAndBothIncomingAircraft() {
         let app = XCUIApplication(); app.launchArguments = ["--uitesting"]; app.launch()
         let trip = app.buttons["nextTrip"]

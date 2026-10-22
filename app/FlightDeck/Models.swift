@@ -100,8 +100,40 @@ struct FlightLeg: Codable, Identifiable, Hashable {
     var calendarDeparture: String? = nil
     var calendarArrival: String? = nil
     var calendarTimeZone: String? = nil
+    var automaticRefreshIntervalSeconds: Int? = nil
+    var automaticTrackingStartsAt: String? = nil
+    var isDataStale: Bool {
+        guard let snapshot else { return true }
+        guard let interval=automaticRefreshIntervalSeconds else { return snapshot.isStale }
+        return interval>0 && Date().timeIntervalSince(FlightTime.date(snapshot.fetchedAt) ?? .distantPast)>=Double(interval)
+    }
+    var automaticRefreshDescription: String {
+        switch automaticRefreshIntervalSeconds {
+        case 900: "Refreshes every 15 minutes while app is open"
+        case 7200: "Refreshes every 2 hours while app is open"
+        case 0: automaticTrackingStartsAt == nil ? "Pull to update flight details":"Automatic tracking starts 48h before departure · pull to refresh"
+        default: "Automatic refresh timing is managed by your server"
+        }
+    }
     var origin: String { snapshot?.flight.origin.iata ?? originIata ?? "—" }
     var destination: String { snapshot?.flight.destination.iata ?? destinationIata ?? "—" }
+    func readyAircraftAirport(at now: Date = Date()) -> Airport? {
+        guard let snapshot,!snapshot.isSchedule,let incoming=snapshot.inbound,
+              !snapshot.flight.cancelled,!snapshot.flight.diverted,
+              snapshot.flight.actualDeparture == nil,snapshot.flight.actualArrival == nil,
+              !incoming.cancelled,!incoming.diverted,
+              let arrival=FlightTime.date(incoming.actualArrival),
+              now.timeIntervalSince(arrival)>2*3600,
+              incoming.destination.iata==snapshot.flight.origin.iata,
+              snapshot.flight.origin.iata.range(of:"^[A-Z]{3}$",options:.regularExpression) != nil else { return nil }
+        let assigned=snapshot.flight.registration?.trimmingCharacters(in:.whitespacesAndNewlines).uppercased().nonempty
+        let previous=incoming.registration?.trimmingCharacters(in:.whitespacesAndNewlines).uppercased().nonempty
+        if let assigned,let previous,assigned != previous { return nil }
+        let link=snapshot.flight.inboundProviderId?.nonempty
+        if let link,link != incoming.providerId { return nil }
+        guard (assigned != nil && assigned==previous) || (link != nil && link==incoming.providerId) else { return nil }
+        return snapshot.flight.origin
+    }
     var departureDay: Date { FlightTime.dayDate(departureDate) }
     var isPast: Bool {
         if snapshot?.flight.actualArrival != nil { return true }

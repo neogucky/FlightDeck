@@ -30,13 +30,25 @@ struct IncomingCard: View {
     let leg: FlightLeg
     var inbound: FlightInfo? { leg.snapshot?.inbound }
     var body: some View {
+        TimelineView(.periodic(from:.now,by:1)) { context in
+            card(readyAt:leg.readyAircraftAirport(at:context.date))
+        }
+    }
+    private func card(readyAt airport: Airport?) -> some View {
         HStack(alignment:.top,spacing:14) {
-            Image(systemName:inbound == nil ? "airplane.circle":"airplane.arrival")
+            Image(systemName:airport != nil ? "checkmark.circle":inbound == nil ? "airplane.circle":"airplane.arrival")
                 .font(.system(size:20,weight:.medium)).foregroundStyle(Deck.green)
                 .frame(width:44,height:44).background(Deck.green.opacity(0.08),in:RoundedRectangle(cornerRadius:14))
             VStack(alignment:.leading,spacing:6) {
                 Text("FOR \(leg.flightNumber)").eyebrow().foregroundStyle(Deck.muted)
-                if let inbound {
+                if let airport,let flight=leg.snapshot?.flight {
+                    Text("Plane ready in \(airport.iata)")
+                        .font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(Deck.ink)
+                    let details=[flight.registration?.nonempty,flight.aircraftType == nil ? nil:flight.aircraftName].compactMap { $0 }.joined(separator:" · ")
+                    if !details.isEmpty {
+                        Text(details).font(.system(size:12)).foregroundStyle(Deck.muted)
+                    }
+                } else if let inbound {
                     Text("\(inbound.origin.iata) → \(inbound.destination.iata)")
                         .font(.system(size:17,weight:.bold,design:.rounded)).foregroundStyle(Deck.ink)
                     Text("\(inbound.flightNumber) · \(inbound.statusLabel)")
@@ -49,7 +61,7 @@ struct IncomingCard: View {
                 }
             }
             Spacer(minLength:0)
-            if let inbound {
+            if airport == nil,let inbound {
                 VStack(alignment:.trailing,spacing:6) {
                     Text(FlightTime.clock(inbound.arrival,zone:inbound.destination.timezone))
                         .font(.system(size:17,weight:.semibold,design:.monospaced)).foregroundStyle(Deck.ink)
@@ -57,6 +69,7 @@ struct IncomingCard: View {
                 }
             }
         }.deckCard(padding:18).accessibilityElement(children:.combine)
+            .accessibilityIdentifier("aircraftStatus-\(leg.flightNumber)")
     }
 }
 

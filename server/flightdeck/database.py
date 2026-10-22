@@ -141,6 +141,11 @@ class Database:
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO api_cache VALUES (?,?,?)", (key, now.isoformat(), json.dumps(payload)))
 
+    def last_refresh_attempt(self, leg_id):
+        with self.connect() as db:
+            row=db.execute('SELECT attempted_at FROM refresh_attempts WHERE leg_id=?',(leg_id,)).fetchone()
+            return datetime.fromisoformat(row[0]) if row else None
+
     def claim_refresh(self, leg_id, now, min_seconds=60):
         with self.transaction() as db:
             row = db.execute("SELECT attempted_at FROM refresh_attempts WHERE leg_id=?", (leg_id,)).fetchone()

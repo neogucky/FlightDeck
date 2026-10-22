@@ -78,7 +78,27 @@ class FlightService:
             for leg in t['legs']:
                 leg['snapshot']=self.db.snapshot(leg['id'])
                 leg['issue']=self.db.refresh_issue(leg['id'])
+                departure=self.scheduled_departure(leg,leg['snapshot'])
+                leg['automatic_refresh_interval_seconds']=self.refresh_interval(leg,leg['snapshot'])
+                leg['automatic_tracking_starts_at']=(departure-timedelta(hours=48)).isoformat() if departure else None
         return trips
+
+    @staticmethod
+    def scheduled_departure(leg, snapshot):
+        for value in [(snapshot or {}).get('flight',{}).get('scheduled_departure'),leg.get('calendar_departure')]:
+            if value:
+                try:
+                    departure=datetime.fromisoformat(value.replace('Z','+00:00'))
+                    if departure.utcoffset() is not None: return departure
+                except (ValueError,TypeError): pass
+        return None
+
+    def refresh_interval(self, leg, snapshot):
+        if (snapshot or {}).get('flight',{}).get('actual_arrival'): return 0
+        departure=self.scheduled_departure(leg,snapshot)
+        if departure is None: return 0
+        remaining=(departure-self.clock()).total_seconds()
+        return 900 if remaining<=6*3600 else 7200 if remaining<=48*3600 else 0
 
     def issues(self):
         return [issue for trip in self.db.trips() for leg in trip['legs'] if (issue:=self.db.refresh_issue(leg['id']))]
@@ -123,7 +143,8 @@ class FlightService:
         row,origin=candidates[0]
         destination=await airport(schedule_airport_code(row,'destination'))
         current=normalize(dict(row,origin=origin,destination=destination,status='Schedule only',registration=None))
-        fetched=min(row.get('_flightdeck_fetched_at',now.isoformat()),origin['_flightdeck_fetched_at'],destination['_flightdeck_fetched_at'])
+        # Cached airport names/timezones do not determine the age of the schedule.
+        fetched=row.get('_flightdeck_fetched_at',now.isoformat())
         return {'fetched_at':fetched,'source':'schedule','flight':current,'inbound':None,
                 'inbound_note':'Published schedule only. Live status and the assigned incoming aircraft become available closer to departure.'}
 
@@ -134,36 +155,35 @@ class FlightService:
         day=date.fromisoformat(leg['departure_date'])
         if day<now.date()-timedelta(days=9):
             raise ConnectorError('This flight is saved in your history. Live details are available only for recent flights.', 'outside_live_window')
-        live=day<=now.date()+timedelta(days=2)
-        if snapshot and snapshot.get('source')=='schedule':
-            departure=snapshot['flight'].get('scheduled_departure')
-            if departure and datetime.fromisoformat(departure.replace('Z','+00:00'))>now+timedelta(hours=47): live=False
+        interval=self.refresh_interval(leg,snapshot)
+        attempted=self.db.last_refresh_attempt(leg['id'])
+        # Resolve a newly added flight once, then pause outside its tracking window.
+        if not force and not interval and (snapshot or attempted): return False
+        departure=self.scheduled_departure(leg,snapshot)
+        live=departure<=now+timedelta(hours=47) if departure else day<=now.date()+timedelta(days=2)
         if snapshot and not force and not previous_issue:
             age=(now-datetime.fromisoformat(snapshot['fetched_at'])).total_seconds()
-            if snapshot.get('source')=='schedule':
-                if not live and age<86400: return True
-            elif age<900: return True
+            if age<interval: return True
         if self.settings.mode == 'live' and self.connector is None:
             raise ConnectorError('Add your AeroAPI key in Settings to enable live flight information.','api_key_required')
-        cooldown=60 if force else 900 if live else 86400
-        if previous_issue and previous_issue['code']=='rate_limited': cooldown=60
-        elif previous_issue and previous_issue['code'] in {'provider_unavailable','provider_connection_error','provider_tls_error','provider_timeout','provider_http_error','provider_response_interrupted','usage_unverified'}:
-            cooldown=min(cooldown,300)
+        cooldown=60 if force else interval or 86400
         if not self.db.claim_refresh(leg['id'],now,min_seconds=cooldown):
             return False
+        # A due refresh bypasses the daily schedule cache, retaining its 60s guard.
+        refresh_provider=force or snapshot is not None
         if self.settings.mode=='demo':
             from .demo import snapshot_for
             self.db.save_snapshot(leg['id'],snapshot_for(leg,now))
             return True
         if not live:
-            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,force))
+            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,refresh_provider))
             return True
         start=max(datetime.combine(day-timedelta(days=1),time.min,timezone.utc),now-timedelta(days=9,hours=23))
         end=min(datetime.combine(day+timedelta(days=2),time.min,timezone.utc),now+timedelta(hours=47))
-        rows=await self.connector.flights(leg['flight_number'],start=start.isoformat(),end=end.isoformat(),force=force)
+        rows=await self.connector.flights(leg['flight_number'],start=start.isoformat(),end=end.isoformat(),force=refresh_provider)
         raw=match_flight(rows,leg)
         if not raw:
-            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,force))
+            self.db.save_snapshot(leg['id'],await self.schedule_snapshot(leg,refresh_provider))
             return True
         current=normalize(raw)
         # Keep partial current-flight updates if the inbound call exhausts the budget or fails.
@@ -171,7 +191,7 @@ class FlightService:
         inbound_id=current.get('inbound_provider_id')
         if inbound_id:
             try:
-                candidates=await self.connector.flights(inbound_id,ident_type='fa_flight_id',force=force)
+                candidates=await self.connector.flights(inbound_id,ident_type='fa_flight_id',force=refresh_provider)
                 candidates=[c for c in candidates if c.get('fa_flight_id')==inbound_id]
                 if len(candidates)==1:
                     inbound=normalize(candidates[0])

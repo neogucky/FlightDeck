@@ -44,9 +44,9 @@ struct TripDetailView: View {
                             }
                             if let snapshot = leg.snapshot {
                                 HStack(spacing:5) {
-                                    Image(systemName:snapshot.isStale ? "clock.badge.exclamationmark":"checkmark.circle")
+                                    Image(systemName:leg.isDataStale ? "clock.badge.exclamationmark":"checkmark.circle")
                                     Text("\(snapshot.isSchedule ? "Schedule checked":"Updated") \((FlightTime.date(snapshot.fetchedAt) ?? .distantPast).formatted(.relative(presentation:.named)))")
-                                    if snapshot.isStale { Text("· May be outdated") }
+                                    if leg.isDataStale { Text("· May be outdated") }
                                 }.font(.system(size:10)).foregroundStyle(Deck.muted)
                             } else {
                                 Text("Saved to your itinerary. Live details become available close to departure.")

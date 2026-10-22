@@ -31,7 +31,7 @@ class Clock:
     def __call__(self):return self.now
 
 
-def fixture(tmp_path, *, budget=4_500_000, rows=None):
+def fixture(tmp_path, *, budget=4_500_000, rows=None, live_available=True):
     clock=Clock();seen=[]
     settings=Settings(database=str(tmp_path/'user.sqlite3'),api_key='fake-schedule-test-key',budget_micro=budget)
     db=Database(settings.database)
@@ -46,7 +46,7 @@ def fixture(tmp_path, *, budget=4_500_000, rows=None):
             return httpx.Response(200,json={'num_pages':1,'scheduled':rows if rows is not None else [scheduled()]})
         if '/airports/' in path:return httpx.Response(200,json=AIRPORTS[path.rsplit('/',1)[-1]])
         if '/flights/' in path:
-            if datetime.fromisoformat(scheduled()['scheduled_out'].replace('Z','+00:00'))>clock.now+timedelta(hours=47):
+            if not live_available or datetime.fromisoformat(scheduled()['scheduled_out'].replace('Z','+00:00'))>clock.now+timedelta(hours=47):
                 return httpx.Response(200,json={'num_pages':1,'flights':[]})
             return httpx.Response(200,json={'num_pages':1,'flights':[dict(scheduled(),origin=AIRPORTS['LSZH'],destination=AIRPORTS['EDDH'],
                 fa_flight_id='live-1052',registration='HB-TEST',status='Scheduled')]})
@@ -156,7 +156,7 @@ def test_schedule_date_matching_uses_verified_origin_timezone(tmp_path):
     asyncio.run(run())
 
 
-def test_rate_limited_future_lookup_recovers_after_one_minute_and_clears_issue(tmp_path):
+def test_manual_future_lookup_can_retry_after_one_minute_and_clears_issue(tmp_path):
     clock=Clock();db=Database(str(tmp_path/'retry.sqlite3'))
     class Stub:
         attempts=0
@@ -173,6 +173,24 @@ def test_rate_limited_future_lookup_recovers_after_one_minute_and_clears_issue(t
         assert (await service.refresh())[0]['code']=='rate_limited'
         assert stub.attempts==1
         clock.now+=timedelta(seconds=31)
-        assert await service.refresh()==[]
+        assert await service.refresh(force=True)==[]
         assert stub.attempts==2 and service.list()[0]['legs'][0]['issue'] is None
+    asyncio.run(run())
+
+
+def test_due_schedule_refresh_bypasses_daily_cache_without_rebuying_airports(tmp_path):
+    clock,seen,api,service,_=fixture(tmp_path,live_available=False)
+    async def run():
+        clock.now=datetime(2026,10,21,12,tzinfo=timezone.utc)  # 49h before departure.
+        await service.refresh()
+        initial=len(seen)
+        clock.now+=timedelta(hours=2)  # First due update, inside 48h.
+        await service.refresh()
+        assert sum('/schedules/' in p for p in seen)==2
+        assert sum('/airports/' in p for p in seen)==2
+        assert len(seen)>initial
+        assert service.list()[0]['legs'][0]['snapshot']['fetched_at']==clock.now.isoformat()
+        after=len(seen);clock.now+=timedelta(minutes=1)
+        await service.refresh();assert len(seen)==after
+        await api.close()
     asyncio.run(run())

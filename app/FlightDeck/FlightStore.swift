@@ -15,6 +15,7 @@ final class FlightStore {
     var isRefreshingUsage = false
     var usageError: String?
     @ObservationIgnored private var usageRequestID: UUID?
+    @ObservationIgnored var appIsActive = false
     var serverMode = "live"
     var demo = false
     var hasEnteredApp = false
@@ -47,6 +48,12 @@ final class FlightStore {
             let count = args.first(where: { $0.hasPrefix("--uitesting-flight-count=") })
                 .flatMap { Int($0.replacingOccurrences(of:"--uitesting-flight-count=",with:"")) } ?? 2
             trips = args.contains("--uitesting-empty") ? []:DemoData.trips(nextTripLegCount:count)
+            if !trips.isEmpty,let minutes=args.first(where:{ $0.hasPrefix("--uitesting-incoming-landed-minutes=") })
+                .flatMap({ Double($0.replacingOccurrences(of:"--uitesting-incoming-landed-minutes=",with:"")) }) {
+                trips[0].legs[0].snapshot?.inbound?.actualArrival=FlightTime.iso(Date().addingTimeInterval(-minutes*60))
+                trips[0].legs[0].snapshot?.inbound?.status="Arrived"
+                trips[0].legs[0].snapshot?.inbound?.progress=100
+            }
             if !trips.isEmpty,args.contains("--uitesting-journey-connecting") {
                 trips[0].legs[0].snapshot?.flight.actualDeparture = FlightTime.iso(Date().addingTimeInterval(-7200))
                 trips[0].legs[0].snapshot?.flight.actualArrival = FlightTime.iso(Date().addingTimeInterval(-1200))
@@ -205,7 +212,7 @@ final class FlightStore {
         } catch { handle(error,token:token) }
     }
     func refreshIfNeeded() async {
-        guard !demo,session != nil else { return }
+        guard appIsActive,!demo,session != nil else { return }
         if let lastSynced,Date().timeIntervalSince(lastSynced) < 60 { return }
         await refresh()
     }

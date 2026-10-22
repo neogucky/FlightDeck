@@ -31,10 +31,13 @@ struct FlightDeckApp: App {
                         }.ignoresSafeArea()
                     }
                 }
-                .onChange(of:phase) { _,value in if value == .active {
-                    calendar.markChanged()
-                    Task { await calendar.automaticScan(trips:store.trips);await store.refreshIfNeeded() }
-                } }
+                .onChange(of:phase) { _,value in
+                    store.appIsActive = value == .active
+                    if value == .active {
+                        calendar.markChanged()
+                        Task { await calendar.automaticScan(trips:store.trips);await store.refreshIfNeeded() }
+                    }
+                }
                 .onChange(of:store.calendarProfileID) { _,value in
                     calendar.configure(profile:value)
                     Task { await calendar.automaticScan(trips:store.trips) }
@@ -45,11 +48,12 @@ struct FlightDeckApp: App {
                     Task { await calendar.automaticScan(trips:store.trips) }
                 }
                 .task {
+                    store.appIsActive = phase == .active
                     let args = ProcessInfo.processInfo.arguments
                     if args.contains(where:{ $0.hasPrefix("--uitesting") }),!args.contains("--uitesting-launch") { launching = false }
                     calendar.configure(profile:store.calendarProfileID)
                     await calendar.automaticScan(trips:store.trips)
-                    await store.refreshIfNeeded()
+                    if phase == .active { await store.refreshIfNeeded() }
                     while !Task.isCancelled {
                         do { try await Task.sleep(for:.seconds(60)) } catch { break }
                         if phase == .active { await calendar.automaticScan(trips:store.trips);await store.refreshIfNeeded() }

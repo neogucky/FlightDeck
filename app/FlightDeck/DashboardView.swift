@@ -71,7 +71,7 @@ struct DashboardView: View {
                         HStack(spacing:5) {
                             if store.isRefreshing { ProgressView().controlSize(.mini) }
                             else { Image(systemName:"arrow.clockwise").font(.system(size:10)) }
-                            Text(store.isRefreshing ? "Updating your flights…":next.legs.allSatisfy { $0.snapshot?.isSchedule == true } ? "Schedules checked daily · pull to refresh":"Live status refreshes when over 15 minutes old")
+                            Text(store.isRefreshing ? "Updating your flights…":store.isDemo ? "Demo flights · no API usage":next.nextLeg?.automaticRefreshDescription ?? "Pull to refresh")
                                 .font(.system(size:10))
                         }.foregroundStyle(Deck.muted).frame(maxWidth:.infinity).padding(.top,2)
                     } else {

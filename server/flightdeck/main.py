@@ -46,7 +46,7 @@ def create_app(settings=None, *, transport=None, clock=None):
     clock = clock or utcnow
     accounts = Accounts(settings,clock)
     locks = {}
-    app = FastAPI(title='FlightDeck',version='0.4.0',docs_url=None,redoc_url=None,openapi_url=None)
+    app = FastAPI(title='FlightDeck',version='0.4.1',docs_url=None,redoc_url=None,openapi_url=None)
     app.add_middleware(BodyLimit)
     app.state.accounts = accounts
 
@@ -100,7 +100,7 @@ def create_app(settings=None, *, transport=None, clock=None):
 
     @app.get('/health')
     def health():
-        return {'status':'ok','version':'0.4.0'}
+        return {'status':'ok','version':'0.4.1'}
 
     @app.get('/v1/server')
     def server_info():
